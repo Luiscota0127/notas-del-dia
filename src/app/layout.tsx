@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 
+import { ThemeScript } from "./ajustes/ToggleTema";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -25,7 +26,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="es">
+    <html lang="es" data-theme="dark">
+      <head>
+        {/* Antes de pintar: evita el flash blanco al recargar en tema claro. */}
+        <ThemeScript />
+      </head>
       <body
         style={{
           paddingTop: "env(safe-area-inset-top)",

@@ -18,14 +18,25 @@ export async function proxy(request: NextRequest) {
   // Sin env vars no hay Supabase que consultar. createServerClient tira con
   // undefined, y eso sería un 500 en cada ruta. El login muestra el mensaje de
   // "sin configurar"; el resto de la app todavía no tiene nada que proteger.
+  // Modo demo: /[date]?demo=1 renderiza la nota de referencia sin backend. El
+  // proxy no debe interferir, o cada navegación a otro día manda a /login.
+  if (request.nextUrl.searchParams.get("demo") === "1") {
+    return NextResponse.next({ request });
+  }
+
   if (!hasSupabaseEnv()) return NextResponse.next({ request });
 
+  const esApi = request.nextUrl.pathname.startsWith("/api/");
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   const isPublic = request.nextUrl.pathname.startsWith("/login");
+
+  // La sonda de diagnóstico informa del estado del schema, así que no puede
+  // quedar detrás del login: el propósito es ver qué pasa cuando no hay sesión.
+  if (esApi) return NextResponse.next({ request });
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();

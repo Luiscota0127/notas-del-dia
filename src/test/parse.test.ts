@@ -227,12 +227,12 @@ describe("casos borde ya resueltos", () => {
 
 describe("contador del día", () => {
   it("cuenta solo checkboxes, no bullets ni texto", () => {
-    expect(countChecks(parseNote(NOTA_REAL))).toEqual({ done: 0, total: 5 });
+    expect(countChecks(parseNote(NOTA_REAL))).toEqual({ total: 5, hechos: 0 });
   });
 
   it("cuenta las hechas", () => {
     const body = NOTA_REAL.replace("☐ 08 sep", "☑ 08 sep").replace("☐ Pintar", "☑ Pintar");
-    expect(countChecks(parseNote(body))).toEqual({ done: 2, total: 5 });
+    expect(countChecks(parseNote(body))).toEqual({ total: 5, hechos: 2 });
   });
 });
 

@@ -18,8 +18,8 @@ export function ContadorDia({ body }: { body: string }) {
 
   if (cuenta.total === 0) return null;
 
-  const pct = Math.round((cuenta.done / cuenta.total) * 100);
-  const limpio = cuenta.done === cuenta.total;
+  const pct = Math.round((cuenta.hechos / cuenta.total) * 100);
+  const limpio = cuenta.hechos === cuenta.total;
 
   return (
     <div className="flex items-center gap-3">
@@ -40,7 +40,7 @@ export function ContadorDia({ body }: { body: string }) {
       </div>
       {/* aria-live: el cambio se anuncia, no es solo visual. */}
       <p aria-live="polite" className="text-dim text-sm whitespace-nowrap">
-        {cuenta.done}/{cuenta.total} completadas
+        {cuenta.hechos}/{cuenta.total} completadas
         {limpio && " 🌙"}
       </p>
     </div>

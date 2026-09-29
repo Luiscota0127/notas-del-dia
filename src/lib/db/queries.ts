@@ -77,6 +77,37 @@ export async function getNoteOf(userId: string, date: string): Promise<Note | nu
   return getNote(userId, date);
 }
 
+/**
+ * Un rango de notas, para el calendario y el buscador.
+ *
+ * Devuelve solo los bodies. Los contadores se derivan en el cliente con el
+ * mismo parse: hacerlo en los dos lados es el mismo cálculo dando dos
+ * resultados distintos si alguno cambia.
+ *
+ * RLS sigue aplicando: cada uno solo lee lo suyo.
+ */
+export async function getNotes(
+  userId: string,
+  desde: string,
+  hasta: string,
+): Promise<{ bodies: Record<string, string> }> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("notes")
+    .select("date, body")
+    .eq("user_id", userId)
+    .gte("date", desde)
+    .lte("date", hasta);
+
+  if (error) throw error;
+
+  const bodies: Record<string, string> = {};
+  for (const row of data ?? []) bodies[row.date] = row.body;
+
+  return { bodies };
+}
+
 /** Crea o actualiza. El body entero, porque es la única fuente de verdad. */
 export async function saveNote(userId: string, date: string, body: string): Promise<void> {
   const supabase = await createClient();

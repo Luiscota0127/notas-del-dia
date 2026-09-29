@@ -187,7 +187,7 @@ export function parseNote(body: string): Task[] {
 }
 
 /** Cuántas checkboxes hay, cuántas hechas. Alimenta el contador del día. */
-export function countChecks(tasks: Task[]): { done: number; total: number } {
+export function countChecks(tasks: Task[]): { total: number; hechos: number } {
   let done = 0;
   let total = 0;
   for (const t of tasks) {
@@ -195,7 +195,7 @@ export function countChecks(tasks: Task[]): { done: number; total: number } {
     total++;
     if (t.done) done++;
   }
-  return { done, total };
+  return { total, hechos: done };
 }
 
 /**
