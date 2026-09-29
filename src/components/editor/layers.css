@@ -66,7 +66,6 @@
   width: 100%;
   background: transparent;
   color: transparent;
-  caret-color: var(--color-fg);
   border: 0;
   outline: none;
   resize: none;
@@ -74,6 +73,20 @@
   /* El texto es invisible pero sigue ahí: la selección nativa funciona, el
      copy/paste funciona, el corrector del sistema funciona. */
   -webkit-text-fill-color: transparent;
+  /*
+    El caret tiene que ser del color del texto, o no se ve dónde estás
+    escribiendo. Va DESPUÉS de -webkit-text-fill-color porque Chrome aplica
+    text-fill-color también al caret cuando el spellcheck/autocorrect está
+    activo, y el caret queda transparente: la síntoma es escribir a ciegas.
+  */
+  caret-color: var(--color-fg);
+}
+
+/* Chrome inyecta un style inline con caret-color: transparent en textareas con
+   autocorrect, y gana sobre la hoja de estilos. Este selector con !important
+   gana sobre el inline. Sin esto, el caret desaparece en algunos navegadores. */
+.capa-input[autocorrect="on"] {
+  caret-color: var(--color-fg) !important;
 }
 
 .capa-input::selection {

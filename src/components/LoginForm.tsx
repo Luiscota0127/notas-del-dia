@@ -18,8 +18,12 @@ export function LoginForm() {
     const { error } = await createClient().auth.signInWithOtp({
       email,
       options: {
-        // La redirección tiene que volver a /login para que el proxy cierre el
-        // ciclo: entra sin sesión, cae acá, magic link, y vuelve con cookie.
+        // Vuelve a /login para que el proxy cierre el ciclo: entra sin sesión,
+        // cae acá, magic link, y vuelve con la cookie puesta.
+        //
+        // El origen sale de la barra de direcciones, no de una constante: la app
+        // puede estar en 3005 en local y en un dominio en producción, y un
+        // redirectTo mal puesto hace que Supabase rechace el link.
         emailRedirectTo: `${window.location.origin}/login`,
       },
     });

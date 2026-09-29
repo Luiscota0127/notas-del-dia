@@ -3,41 +3,45 @@
 ## Estado
 
 - [x] Proyecto creado, `.env.local` con URL y anon key
-- [x] `0001_init.sql` y `0002_realtime.sql` aplicadas (RLS confirmada: insert
-      anónimo rechazado con `42501`)
-- [x] Magic link enviado a `luiscota2701@gmail.com`
-- [ ] Sesión abierta en el navegador de pruebas
-- [ ] Crear la primera nota y ver que persiste
-- [ ] Autoguardado verificado contra la base real
+- [x] `0001_init.sql` y `0002_realtime.sql` aplicadas
+      (RLS confirmada: insert anónimo rechazado con `42501`)
+- [x] Email provider habilitado, confirmación de email **OFF**
+- [x] Puerto movido a **3005** para no chocar con desayunos-web
+- [ ] Sesión real abierta
+- [ ] Primera nota persistida contra Postgres
+- [ ] Autoguardado verificado
 - [ ] Vista Semana con datos
-- [ ] Aislamiento: una segunda cuenta que no ve las notas de la primera
+- [ ] Aislamiento entre dos cuentas
 
-## Por qué el punto 6 importa más que los otros
+## Por qué está frenado
 
-Las RLS ya están verificadas por la sonda (`/api/diag-schema` confirma que el
-insert anónimo falla con 42501). Falta la parte que la sonda no puede probar:
-que **dos sesiones autenticadas** queden aisladas la una de la otra. Esa es la
-prueba de que sirve para algo.
+**Supabase devuelve `429 email rate limit exceeded`.** El límite del SMTP por
+defecto es por IP y por hora, y los intentos de prueba lo agotaron. No es un
+problema de configuración: el endpoint de OTP responde bien con un correo
+inválido (`400 email_address_invalid`), o sea que el provider está habilitado y
+la confirmación apagada.
 
-Se necesita un segundo correo. Cuando lo tengas, el flujo es:
+El rate limit se reinicia solo. Cuando se va, mando el link o el login entra
+directo (con la confirmación apagada no hace falta abrir el correo).
 
-1. Sesión A (este correo) → escribir una nota con un texto reconocible
-2. Sesión B (otro correo) → abrir el mismo día → no debe ver esa nota
-3. Sesión B → escribir → A no la ve
+Si querés desbloquearlo ya, las opciones son:
 
-Cada corrida del navegador usa un perfil throwaway, así que las dos sesiones
-tienen que convivir en un mismo `--script`, o hay que hacer A, guardar el estado
-de la cookie, y pasarlo a la segunda corrida.
+1. **Esperar.** Es lo simple, y el límite de Supabase en el plan free es de
+   unas pocas horas.
+2. **SMTP propio.** Authentication → SMTP con Resend, Brevo o Postmark. Sin
+   límite, y es lo que corresponde en producción de todas formas.
+3. **Verificar con una API key de servicio** desde un script, sin pasar por el
+   flujo de email. Más rápido para probar el aislamiento, pero no ejercita el
+   login que usa tu esposa.
 
-## Limitación del magic link
+## La prueba que más importa
 
-El link llega al inbox, que el runner no puede leer. Dos opciones:
+El **aislamiento entre dos cuentas**. La sonda ya confirmó que un insert anónimo
+falla con `42501`, pero eso no prueba que dos sesiones autenticadas queden
+separadas. Para eso hace falta un segundo correo.
 
-- Abrir el link a mano y pegar la URL de la sesión acá (es un link de
-  `supabase.co/auth/v1/verify?...` con el token).
-- O desactivar la confirmación de email en Supabase (Authentication → Providers →
-  Email → *Confirm email* off) y crear el usuario desde el panel. Más rápido para
-  desarrollo, menos seguro: solo para probar.
+## Recordatorio
 
-Para uso real (el de tu esposa en el iPhone) el magic link con confirmación es lo
-correcto, así que conviene probarlo así al menos una vez.
+**Volver a prender *Confirm email*** cuando termine. Con la confirmación apagada,
+cualquiera que sepa un correo puede entrar como esa persona. Está documentado en
+`docs/confirmacion-email-off.md`.

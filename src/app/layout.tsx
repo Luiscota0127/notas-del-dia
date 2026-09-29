@@ -26,7 +26,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="es" data-theme="dark">
+    // suppressHydrationWarning es necesario y no es un parche: el ThemeScript
+    // cambia data-theme ANTES de que React hidrate (es lo que evita el flash
+    // blanco). React ve un atributo distinto al que él renderizó y avisa. El
+    // atributo lo controla el script, no React, así que el warning es ruido.
+    <html lang="es" data-theme="dark" suppressHydrationWarning>
       <head>
         {/* Antes de pintar: evita el flash blanco al recargar en tema claro. */}
         <ThemeScript />
