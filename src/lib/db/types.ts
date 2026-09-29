@@ -10,6 +10,23 @@ export type Json = string | number | boolean | null | { [key: string]: Json } | 
 export type Database = {
   public: {
     Tables: {
+      lista: {
+        Row: {
+          id: string;
+          body: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          body?: string;
+          updated_at?: string;
+        };
+        Update: {
+          body?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;

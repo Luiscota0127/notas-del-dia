@@ -1,0 +1,308 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+
+import { guardarLista } from "@/app/acciones";
+import { parseNote, toggleCheck } from "@/lib/parse";
+
+import { DisplayLayer } from "@/components/editor/DisplayLayer";
+import "@/components/editor/layers.css";
+
+/**
+ * El editor de la lista de mandado. Es el mismo de dos capas de la nota, sin
+ * fecha: no hay encabezado de día, no hay auto-guardado por día, y el documento
+ * es compartido.
+ *
+ * Reusa DisplayLayer y el mismo parse, así que el formato de la lista es
+ * idéntico al de las notas: `☐ pan`, `☑ leche`, `• algo`.
+ */
+export function ListaEditor({
+  initialBody,
+  partner,
+}: {
+  initialBody: string;
+  partner: { name: string } | null;
+}) {
+  const [body, setBody] = useState(initialBody);
+  const [estado, setEstado] = useState<"guardado" | "guardando" | "error">("guardado");
+  const [, startTransition] = useTransition();
+
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const capaRef = useRef<HTMLDivElement>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const ultimoGuardado = useRef(body);
+  const pilaProgramatica = useRef<{ before: string; after: string }[]>([]);
+  const escribiendoDesde = useRef(false);
+
+  // --- autoguardado ------------------------------------------------------
+  useEffect(() => {
+    if (body === ultimoGuardado.current) return;
+    clearTimeout(timer.current);
+    setEstado("guardando");
+
+    timer.current = setTimeout(() => {
+      startTransition(async () => {
+        try {
+          await guardarLista(body);
+          ultimoGuardado.current = body;
+          setEstado("guardado");
+        } catch {
+          setEstado("error");
+        }
+      });
+    }, 800);
+
+    return () => clearTimeout(timer.current);
+  }, [body]);
+
+  // --- sincronización de scroll ------------------------------------------
+  useEffect(() => {
+    const input = inputRef.current;
+    const capa = capaRef.current;
+    if (!input || !capa) return;
+
+    let pendiente = false;
+    const alScroll = () => {
+      if (pendiente) return;
+      pendiente = true;
+      requestAnimationFrame(() => {
+        capa.scrollTop = input.scrollTop;
+        pendiente = false;
+      });
+    };
+
+    input.addEventListener("scroll", alScroll, { passive: true });
+    return () => input.removeEventListener("scroll", alScroll);
+  }, []);
+
+  // --- teclado en iOS ----------------------------------------------------
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const alCambiar = () => {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty("--kb-inset", `${inset}px`);
+    };
+    alCambiar();
+    vv.addEventListener("resize", alCambiar);
+    vv.addEventListener("scroll", alCambiar);
+    return () => {
+      vv.removeEventListener("resize", alCambiar);
+      vv.removeEventListener("scroll", alCambiar);
+      document.documentElement.style.removeProperty("--kb-inset");
+    };
+  }, []);
+
+  // --- toggle ------------------------------------------------------------
+  const toggle = useCallback(
+    (index: number) => {
+      const lineas = body.split("\n");
+      if (index < 0 || index >= lineas.length) return;
+
+      const antes = lineas[index];
+      const despues = toggleCheck(antes);
+      if (antes === despues) return;
+
+      lineas[index] = despues;
+      const siguiente = lineas.join("\n");
+
+      const input = inputRef.current;
+      const sel = input?.selectionStart ?? 0;
+      const selFin = input?.selectionEnd ?? 0;
+      const delta = despues.length - antes.length;
+
+      pilaProgramatica.current.push({ before: body, after: siguiente });
+      escribiendoDesde.current = false;
+      setBody(siguiente);
+
+      requestAnimationFrame(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.setSelectionRange(Math.max(0, sel + delta), Math.max(0, selFin + delta));
+      });
+    },
+    [body],
+  );
+
+  // --- Enter al final de una tarea crea la siguiente ---------------------
+  const alEnter = useCallback(
+    (e: KeyboardEvent) => {
+      const input = inputRef.current;
+      if (!input || e.key !== "Enter" || e.shiftKey || e.ctrlKey || e.metaKey) return;
+
+      const pos = input.selectionStart;
+      if (pos !== input.selectionEnd) return;
+
+      const antes = input.value.slice(0, pos);
+      if (antes === "" || antes.endsWith("\n")) return;
+
+      const lineaActual = antes.slice(antes.lastIndexOf("\n") + 1);
+      if (lineaActual.trim() === "") return;
+
+      const t = parseNote(lineaActual)[0];
+      if (!t || (t.kind !== "check" && t.kind !== "bullet")) return;
+
+      e.preventDefault();
+
+      const prefijo = t.kind === "check" ? "☐ " : t.prefix || "• ";
+      const insercion = `\n${prefijo}`;
+
+      const resto = body.slice(pos);
+      const corte = resto.indexOf("\n");
+      const cola = corte === -1 ? "" : resto.slice(0, corte);
+      const siguiente = corte === -1 ? resto : resto.slice(corte);
+
+      escribiendoDesde.current = true;
+      setBody(body.slice(0, pos) + insercion + cola + siguiente);
+
+      const caret = pos + insercion.length;
+      requestAnimationFrame(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.setSelectionRange(caret, caret);
+      });
+    },
+    [body],
+  );
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.addEventListener("keydown", alEnter);
+    return () => input.removeEventListener("keydown", alEnter);
+  }, [alEnter]);
+
+  // --- Ctrl+Z de los toggles --------------------------------------------
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+
+    const alTeclado = (e: KeyboardEvent) => {
+      if (e.target !== input) return;
+      if (e.key !== "z" && e.key !== "Z") return;
+      if (!e.ctrlKey && !e.metaKey) return;
+
+      const pila = pilaProgramatica.current;
+      if (pila.length === 0 || escribiendoDesde.current) return;
+
+      e.preventDefault();
+      const op = pila.pop()!;
+      escribiendoDesde.current = false;
+      setBody(op.before);
+      requestAnimationFrame(() => inputRef.current?.focus());
+    };
+
+    input.addEventListener("keydown", alTeclado);
+    return () => input.removeEventListener("keydown", alTeclado);
+  }, []);
+
+  // --- alto --------------------------------------------------------------
+  const ajustarAlto = useCallback(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    const piso = window.innerHeight * 0.5;
+    input.style.height = "auto";
+    input.style.height = `${Math.max(input.scrollHeight, piso)}px`;
+  }, []);
+
+  useEffect(() => {
+    ajustarAlto();
+    window.addEventListener("resize", ajustarAlto);
+    return () => window.removeEventListener("resize", ajustarAlto);
+  }, [ajustarAlto, body]);
+
+  // --- ancho del prefijo -------------------------------------------------
+  useEffect(() => {
+    const medir = () => {
+      const prefijo = inputRef.current
+        ?.parentElement?.querySelector<HTMLElement>(".linea-check .prefijo");
+      if (!prefijo) return;
+      const ancho = prefijo.getBoundingClientRect().width;
+      if (ancho > 0) {
+        document.documentElement.style.setProperty("--ancho-prefijo", `${ancho}px`);
+      }
+    };
+    medir();
+    const t = setTimeout(medir, 120);
+    window.addEventListener("resize", medir);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("resize", medir);
+    };
+  }, [body]);
+
+  const tasks = parseNote(body);
+  const pendientes = tasks.filter((t) => t.kind === "check" && !t.done).length;
+
+  return (
+    <div className="p-4 md:p-8">
+      <header className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-xl">Mandado</h1>
+          <p className="text-dim text-sm truncate">
+            {partner ? `Compartida con ${partner.name}` : "La lista de la casa"}
+          </p>
+        </div>
+        <div className="flex items-center gap-4 shrink-0">
+          {pendientes > 0 && (
+            <p className="text-dim text-sm whitespace-nowrap">{pendientes} sin comprar</p>
+          )}
+          <p aria-live="polite" className="text-dim text-sm">
+            {estado === "guardando" && "Guardando…"}
+            {estado === "guardado" && "Guardado ✓"}
+            {estado === "error" && (
+              <span className="text-accent">No se pudo guardar. Reintentá.</span>
+            )}
+          </p>
+        </div>
+      </header>
+
+      <div className="editor">
+        <label htmlFor="lista" className="sr-only">
+          La lista de mandado
+        </label>
+        <textarea
+          id="lista"
+          ref={inputRef}
+          className="capa-input"
+          value={body}
+          onChange={(e) => {
+            escribiendoDesde.current = true;
+            setBody(e.target.value);
+          }}
+          spellCheck
+          autoCapitalize="sentences"
+          autoCorrect="on"
+          enterKeyHint="enter"
+          inputMode="text"
+          rows={16}
+        />
+        <div className="capa-scroll" ref={capaRef}>
+          <DisplayLayer tasks={tasks} onToggle={toggle} />
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={() => {
+            const base = body.endsWith("\n") || body === "" ? body : body + "\n";
+            const nuevo = base + "☐ ";
+            setBody(nuevo);
+            escribiendoDesde.current = true;
+            requestAnimationFrame(() => {
+              const el = inputRef.current;
+              if (!el) return;
+              el.focus();
+              el.setSelectionRange(nuevo.length, nuevo.length);
+              el.scrollIntoView({ block: "end" });
+            });
+          }}
+          className="btn-ghost text-sm"
+        >
+          + Agregar
+        </button>
+      </div>
+    </div>
+  );
+}

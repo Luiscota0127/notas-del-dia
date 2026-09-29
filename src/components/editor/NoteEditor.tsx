@@ -250,12 +250,106 @@ export function NoteEditor({
     return () => input.removeEventListener("keydown", alTeclado);
   }, [alTeclado]);
 
+  // --- Enter al final de una línea de tarea crea la siguiente ------------
+  // Ella escribe a mano y a una mano. Escribir "☐ " en cada renglón es lo
+  // natural cuando la app puede ponerlo sola.
+  //
+  // Solo dispara al FINAL de una línea, y solo si la línea ya es una tarea
+  // (checkbox o bullet). En medio de un texto no toca nada: escribir "hola" y
+  // apretar Enter tiene que hacer un Enter.
+  //
+  // Muta el estado en vez de execCommand: el insertText deprecado depende de un
+  // selection que React ya no controló, y con un rAF de diferencia el caret
+  // queda en cualquier lado.
+  const alEnter = useCallback(
+    (e: KeyboardEvent) => {
+      const input = inputRef.current;
+      if (!input || e.key !== "Enter" || e.shiftKey || e.ctrlKey || e.metaKey) return;
+
+      const pos = input.selectionStart;
+      if (pos !== input.selectionEnd) return;
+
+      const antes = input.value.slice(0, pos);
+      if (antes === "" || antes.endsWith("\n")) return;
+
+      const lineaActual = antes.slice(antes.lastIndexOf("\n") + 1);
+      if (lineaActual.trim() === "") return;
+
+      // Solo sobre líneas que ya son una tarea: un encabezado o una línea de
+      // texto no generan un checkbox nuevo.
+      const t = parseNote(lineaActual)[0];
+      if (!t || (t.kind !== "check" && t.kind !== "bullet")) return;
+
+      e.preventDefault();
+
+      // El prefijo nuevo es el de la línea actual: si escribe bullets, sigue
+      // con bullets. Copiar el carácter, no hardcodear "☐ ".
+      const prefijo = t.kind === "check" ? "☐ " : t.prefix || "• ";
+      const insercion = `\n${prefijo}`;
+
+      // Si el cursor estaba en medio de la línea, lo que queda después se va con
+      // la línea nueva; si estaba al final, no hay nada que mover. Sin esto,
+      // "abc)def" partido en medio queda "abc" y "☐ )def".
+      const resto = body.slice(pos);
+      const corte = resto.indexOf("\n");
+      const cola = corte === -1 ? "" : resto.slice(0, corte);
+      const siguiente = corte === -1 ? resto : resto.slice(corte);
+
+      escribiendoDesde.current = true;
+      setBody(body.slice(0, pos) + insercion + cola + siguiente);
+
+      const caret = pos + insercion.length;
+      requestAnimationFrame(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.setSelectionRange(caret, caret);
+      });
+    },
+    [body],
+  );
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.addEventListener("keydown", alEnter);
+    return () => input.removeEventListener("keydown", alEnter);
+  }, [alEnter]);
+
   // --- en iOS el teclado tapa el elemento enfocado -----------------------
   const alEnfocar = useCallback(() => {
     requestAnimationFrame(() => {
       inputRef.current?.scrollIntoView({ block: "center" });
     });
   }, []);
+
+  // --- agregar al final sin escribir -------------------------------------
+  // A veces se quiere sumar una tarea abajo de todo, no seguir la línea que se
+  // está escribiendo. These dos botones son para eso.
+  //
+  // ponytail: mutan el string y mueven el caret al final. Sin historial
+  // propio: el de la textarea no los cubre, pero con Ctrl+Z alcanza con
+  // desahacer la línea siguiente.
+  const agregarAlFinal = useCallback(
+    (texto: string) => {
+      const base = body.endsWith("\n") || body === "" ? body : body + "\n";
+      const nuevo = base + texto;
+      setBody(nuevo);
+      escribiendoDesde.current = true;
+
+      requestAnimationFrame(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.focus();
+        const fin = nuevo.length;
+        el.setSelectionRange(fin, fin);
+        el.scrollIntoView({ block: "end" });
+      });
+    },
+    [body],
+  );
+
+  const agregarTarea = useCallback(() => agregarAlFinal("☐ "), [agregarAlFinal]);
+  const agregarLinea = useCallback(() => agregarAlFinal(""), [agregarAlFinal]);
 
   const tasks = parseNote(body);
 
@@ -307,6 +401,15 @@ export function NoteEditor({
         <div className="capa-scroll" ref={capaRef}>
           <DisplayLayer tasks={tasks} onToggle={toggle} />
         </div>
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <button type="button" onClick={agregarTarea} className="btn-ghost text-sm">
+          + Tarea
+        </button>
+        <button type="button" onClick={agregarLinea} className="btn-ghost text-sm">
+          + Línea
+        </button>
       </div>
     </div>
   );

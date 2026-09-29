@@ -99,12 +99,20 @@ export function BarraNavegacion({
               →
             </button>
           </div>
-          <Link
-            href={`/semana${nav.demo}`}
-            className="text-sm text-dim hover:text-accent"
-          >
-            Ver la semana
-          </Link>
+          <div className="flex flex-col gap-2">
+            <Link
+              href={`/mandado${nav.demo}`}
+              className="text-sm text-dim hover:text-accent"
+            >
+              Mandado
+            </Link>
+            <Link
+              href={`/semana${nav.demo}`}
+              className="text-sm text-dim hover:text-accent"
+            >
+              Ver la semana
+            </Link>
+          </div>
         </div>
       )}
 
@@ -148,6 +156,12 @@ export function BarraNavegacion({
             Buscar
             <kbd className="text-dim text-xs ml-1">Ctrl K</kbd>
           </button>
+          <Link
+            href={`/mandado${nav.demo}`}
+            className="text-dim hover:text-accent font-medium"
+          >
+            Mandado
+          </Link>
           <Link href="/ajustes" className="text-dim hover:text-accent mt-2">
             {me.name}
             {partner ? ` y ${partner.name}` : ""}

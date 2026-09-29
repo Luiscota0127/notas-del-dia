@@ -108,6 +108,40 @@ export async function getNotes(
   return { bodies };
 }
 
+/**
+ * La lista de mandado. Compartida por la pareja: las RLS de `lista` permiten
+ * leer y escribir a cualquiera con un profile, a diferencia de `notes`.
+ *
+ * Devuelve "" si todavía no existe: la fila se crea en el primer guardado, no
+ * al leer. Una lista vacía y una lista que no existen son el mismo estado para
+ * quien la usa.
+ */
+export async function getLista(): Promise<string> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.from("lista").select("body").maybeSingle();
+  if (error) throw error;
+  return data?.body ?? "";
+}
+
+/** Guarda la lista. Crea la fila si es la primera vez. */
+export async function saveLista(body: string): Promise<void> {
+  const supabase = await createClient();
+
+  // maybeSingle + upsert sobre el índice singleton. La alternative sería un
+  // select-then-insert, que tiene carrera entre dos personas guardando a la vez.
+  const { data: actual } = await supabase
+    .from("lista")
+    .select("id")
+    .maybeSingle();
+
+  const { error } = actual
+    ? await supabase.from("lista").update({ body }).eq("id", actual.id)
+    : await supabase.from("lista").insert({ body });
+
+  if (error) throw error;
+}
+
 /** Crea o actualiza. El body entero, porque es la única fuente de verdad. */
 export async function saveNote(userId: string, date: string, body: string): Promise<void> {
   const supabase = await createClient();

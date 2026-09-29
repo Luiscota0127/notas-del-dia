@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { ContinuarSesion } from "@/components/ContinuarSesion";
 import { LoginForm } from "@/components/LoginForm";
 import { hasSupabaseEnv } from "@/lib/db/client";
 import { getUser } from "@/lib/db/queries";
@@ -15,6 +16,11 @@ export default async function LoginPage() {
       <div className="w-full max-w-sm">
         <h1 className="text-2xl mb-1">Notas del Día</h1>
         <p className="text-dim mb-8">La libreta de pendientes de la casa.</p>
+
+        {/* El servidor no puede ver el token del magic link todavía. Este
+            componente lo canjea del lado del cliente y, si hay sesión, manda a
+            /hoy. Sin esto, el link deja al usuario parado acá. */}
+        <ContinuarSesion />
 
         {hasSupabaseEnv() ? <LoginForm /> : <SinConfigurar />}
       </div>
