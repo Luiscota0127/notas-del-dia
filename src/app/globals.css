@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+/*
+ * Tokens de notas-del-dia. Fijados en .opencode/skills/notas-formato/references/visual.md
+ *
+ * El editor replica Notion en oscuro. Cualquier valor que no esté en esa
+ * referencia necesita justificación escrita antes de cambiarse.
+ */
+
+@theme {
+  --color-bg: #111111;
+  --color-elevated: #1a1a1a;
+  --color-fg: #e4e4e7;
+  --color-dim: #a1a1aa;
+  --color-accent: #f59e0b;
+  --color-line: #2e2e2e;
+
+  --font-sans:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+/* Modo claro: el mismo naranja oscurecido. #f59e0b sobre blanco da ~2.1:1 y
+   falla AA, así que el acento cambia con el tema. */
+[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #ffffff;
+  --color-elevated: #f7f7f8;
+  --color-fg: #1c1c1e;
+  --color-dim: #6b6b70;
+  --color-accent: #b45309;
+  --color-line: #d4d4d8;
+}
+
+html {
+  background: var(--color-bg);
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-text-size-adjust: 100%;
+  /* iOS: sin esto el texto se infla al rotar o al hacer zoom en el input. */
+  -webkit-font-smoothing: antialiased;
+}
+
+/* El área de escritura no puede usar 100vh con el teclado abierto: en iOS
+   100vh es el alto del layout, no el visible. --kb-inset lo calcula
+   useVisualViewport. */
+#editor-scroll {
+  padding-bottom: calc(1rem + var(--kb-inset, 0px));
+  transition: padding-bottom 0.15s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Foco visible en todo lo interactivo. Nunca outline: none sin reemplazo. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@utility input {
+  background: var(--color-elevated);
+  border: 1px solid var(--color-line);
+  border-radius: 4px;
+  color: var(--color-fg);
+  padding: 0.625rem 0.75rem;
+  font-size: 1rem;
+}
+
+@utility btn {
+  background: var(--color-accent);
+  color: #111111;
+  border-radius: 4px;
+  padding: 0.625rem 0.75rem;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+@utility btn-ghost {
+  background: transparent;
+  border: 1px solid var(--color-line);
+  color: var(--color-fg);
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+}
