@@ -1,0 +1,289 @@
+/*
+ * Métricas compartidas entre la textarea y la capa de display.
+ *
+ * Este archivo es la parte más frágil del editor: si estas medidas divergen
+ * entre las dos capas, el texto se ve corrido respecto al caret. Están juntas en
+ * un solo lugar justamente para que no puedan divergir.
+ *
+ * Valores de .opencode/skills/notas-formato/references/visual.md
+ */
+
+.editor {
+  /* La altura la da la textarea (es el elemento que está en el flujo), no
+     100vh: con el teclado abierto en iOS, 100vh es el alto del layout y no el
+     visible. */
+  /*
+   * ABSOLUTO a propósito. Con `1.6em` cada elemento lo resuelve contra SU
+   * font-size: en .mes (20px) daba 32px en vez de 27.2px, y como el error se
+   * acumula hacia abajo, todas las líneas siguientes quedaban 4.8px corridas
+   * respecto del caret. 27.2px = 17px * 1.6, el line-height de la referencia.
+   */
+  --linea: 27.2px;
+  --pad-x: 1rem;
+  --pad-y: 0.75rem;
+
+  position: relative;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 17px;
+  line-height: var(--linea);
+}
+
+/* ---------------------------------------------------------------------------
+ * Las dos capas. Exactamente las mismas métricas, siempre.
+ * ------------------------------------------------------------------------ */
+.capa,
+.capa-input {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  padding: var(--pad-y) var(--pad-x);
+  padding-bottom: calc(var(--pad-y) + var(--kb-inset, 0px));
+  box-sizing: border-box;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  tab-size: 4;
+}
+
+/* El contenedor que scrollea. La textarea está en el flujo y define el alto;
+   esta capa va encima, absoluta, y su scrollTop se copia del de la textarea. */
+.capa-scroll {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.capa {
+  pointer-events: none;
+  color: var(--color-fg);
+}
+
+.capa-input {
+  position: relative;
+  display: block;
+  width: 100%;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--color-fg);
+  border: 0;
+  outline: none;
+  resize: none;
+  overflow-y: auto;
+  /* El texto es invisible pero sigue ahí: la selección nativa funciona, el
+     copy/paste funciona, el corrector del sistema funciona. */
+  -webkit-text-fill-color: transparent;
+}
+
+.capa-input::selection {
+  background: color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+ * Líneas
+ * ------------------------------------------------------------------------ */
+.linea {
+  min-height: var(--linea);
+}
+
+.linea-vacia {
+  min-height: var(--linea);
+}
+
+/*
+ * Sangría de la continuación — hanging indent.
+ *
+ * Cuando el texto envuelve (típico en iPhone), la segunda línea física tiene que
+ * arrancar donde arrancó la primera.
+ *
+ * Se hace con un float de ancho cero, NO con text-indent: text-indent solo afecta
+ * a la primera línea de un bloque, así que la combinación de padding-left +
+ * text-indent negativo deja las continuaciones en el borde (probado, falla).
+ *
+ * El float tiene ancho 0 y alto el line-height: ocupa el espacio del checkbox en
+ * la primera línea, y como no tiene ancho, las líneas siguientes fluyen a la
+ * derecha del punto de inicio del bloque... que es lo que no queremos.
+ *
+ * La forma que sí funciona: el prefijo invisible es un float de ancho real. La
+ * primera línea lo esquiva, y cuando el texto envuelve pasa por debajo y arranca
+ * en el margen izquierdo. Por eso .prefijo NO puede ser display:none.
+ */
+.hanging .prefijo {
+  visibility: hidden;
+  font: inherit;
+  float: left;
+  width: var(--ancho-prefijo, 1.2em);
+  height: var(--linea);
+}
+
+.hanging .texto {
+  /* El float ya reservó el espacio de la primera línea; las continuaciones
+     arrancan en el margen, que es exactamente donde empieza el texto. */
+  display: block;
+  overflow: hidden; /* BFC: hace que el bloque no se monte sobre el float. */
+}
+
+.linea-colchon {
+  min-height: calc(var(--linea) * 3);
+}
+
+/*
+ * CRÍTICO: el alto de TODA línea de la capa de display tiene que ser exactamente
+ * --linea, la misma que usa la textarea. Si un encabezado ocupa más alto, el
+ * error se acumula hacia abajo y todas las líneas siguientes quedan corridas
+ * respecto del caret. Por eso .mes NO lleva min-height propio: el 20px de
+ * font-size entra en la caja de 27.2px sin agrandarla.
+ */
+.mes {
+  color: var(--color-accent);
+  font-size: 20px;
+  font-weight: 500;
+  /* tracking normal: en mayúsculas a 20px el tracking amplio se ve pretencioso. */
+  letter-spacing: normal;
+  min-height: var(--linea);
+}
+
+.dia {
+  color: var(--color-fg);
+  font-size: 16px;
+  font-weight: 500;
+  min-height: var(--linea);
+}
+
+/* Prefijo ----------------------------------------------------------------- */
+/* El carácter original (`☐ `, `•  `) presente pero invisible. Su ancho es lo que
+   mido en NoteEditor para fijar --ancho-prefijo, así que tiene que seguir
+   teniendo layout: no puede ser display:none. */
+.prefijo {
+  visibility: hidden;
+  font: inherit;
+}
+
+/* Checkbox ---------------------------------------------------------------- */
+.linea-check {
+  display: block;
+  position: relative;
+}
+
+/* El área táctil real es 44x44 (lo que un dedo necesita); el cuadrado visible
+   sigue siendo 16x16, y se posiciona sobre el prefijo invisible. */
+.hit {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 44px;
+  /* 44x44 es el mínimo que Apple pide para un dedo. La línea mide 27.2px, así
+     que el botón se extiende hacia arriba y hacia abajo: el área real de toque
+     es 44x44 aunque la línea sea más baja. */
+  height: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  pointer-events: auto;
+  cursor: pointer;
+  /* Centra los 44px de alto sobre los 27.2px de la línea. */
+  top: calc(var(--linea) / 2 - 22px);
+  /* El `☐ ` mide ~1.2em. El botón arranca en 0 y el cuadrado de 16px queda
+     dentro de los 44px. Este margen lo alinea con donde estaba el carácter. */
+  margin-left: calc(var(--ancho-prefijo, 1.2em) * -1 + 2px);
+}
+
+.caja {
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--color-line);
+  display: block;
+  position: relative;
+  flex: none;
+  /* Cuadrado. Nunca redondeado: la referencia no lo usa. */
+  border-radius: 0;
+}
+
+.caja-marca {
+  display: none;
+}
+
+/* Marcado: se llena, con el check del color de fondo encima. */
+.caja[data-done] {
+  background: var(--color-fg);
+  border-color: var(--color-fg);
+}
+
+.caja[data-done] .caja-marca {
+  display: block;
+  position: absolute;
+  inset: 0;
+  /* Check dibujado con dos bordes rotados. SVG inline de 3 líneas no necesita
+     librería, y un ✓ de sistema cambia de forma entre plataformas. */
+  width: 5px;
+  height: 9px;
+  margin: auto;
+  border: solid var(--color-bg);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+.hit:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* El foco real va en el input de la textarea (F2Accessibility), el botón es
+   tabIndex={-1}. Este foco existe solo por si se navega con teclado el display. */
+
+/* Texto ------------------------------------------------------------------- */
+.texto {
+  /* Mismo tamaño que la textarea. Cualquier diferencia de acá desplaza el
+     caret respecto de lo que se ve. */
+  font: inherit;
+  color: var(--color-fg);
+}
+
+/* Hecho: baja a --dim. NO tachado y NO opacity. Notion no tacha, y el tachado
+   sobre texto escrito a mano se ve sucio. */
+.texto.hecho {
+  color: var(--color-dim);
+}
+
+.hora {
+  /* Mismo tamaño, solo distinto color: el mono acá desplazaría el texto. */
+  color: var(--color-dim);
+}
+
+.quien {
+  color: var(--color-dim);
+}
+
+/* El bullet sí se ve: es texto normal que también está en la textarea, así que
+   su ancho ya calza solo. Lo que se oculta es el prefijo de los checkboxes, que
+   se reemplaza por el cuadrado. */
+.linea-bullet .prefijo {
+  visibility: visible;
+  color: var(--color-dim);
+}
+
+/* Pendientes atrasados --------------------------------------------------- */
+.hit-atrasado {
+  position: static;
+  display: inline-flex;
+  margin-left: 0.5em;
+  width: auto;
+  height: auto;
+  vertical-align: middle;
+}
+
+.atrasado {
+  font-size: 12px;
+  color: var(--color-accent);
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 0 4px;
+  line-height: 1.4;
+}

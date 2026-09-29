@@ -51,7 +51,7 @@ las notificaciones y Supabase están pedidos explícitamente; que los propongas 
 sobreingeniería no es un argumento para quitarlos.
 
 Cuando tomes un atajo deliberado, márcalo con un comentario `ponytail:` en el
-código explicando qué se_cutó y por qué, para que `/ponytail-debt` lo pueda
+código explicando qué se cortó y por qué, para que `/ponytail-debt` lo pueda
 recuperar.
 
 ### 4. El editor es una superficie hostil en iOS
@@ -90,15 +90,42 @@ npm run lint
 
 ## Estado
 
-- **F0** scaffolding, parser, `format.ts`, 79 tests. Hecho.
-- **F1** auth magic link, esquema con RLS, `NoteEditor` de placeholder. Código
-  listo; falta que el usuario cree el proyecto de Supabase y aplique
-  `0001_init.sql` + `0002_realtime.sql` (el CLI local no funciona, ver README).
-- **F2** a **F5** pendientes. Ver `PLAN.md`.
+- **F0** scaffolding, parser, `format.ts`. Hecho.
+- **F1** auth magic link, esquema con RLS, queries. Código listo; falta que el
+  usuario cree el proyecto de Supabase y aplique `0001_init.sql` +
+  `0002_realtime.sql` (el CLI local no funciona, ver README).
+- **F2** editor de dos capas, checkboxes, contador del día. Hecho y verificado
+  en navegador a 1280px y 390x844.
+- **F3** a **F5** pendientes. Ver `PLAN.md`.
 
-El `NoteEditor` actual es un textarea con autoguardado a propósito: prueba el
-round-trip de datos contra las RLS reales antes de meter el editor de dos capas
-encima. En F2 se reemplaza.
+## Ver el editor sin backend
+
+`/2026-09-01?demo=1` renderiza la nota real de la referencia desde
+`NEXT_PUBLIC_DEMO_NOTA`. Es la forma de revisar el render sin Supabase. El atajo
+existe solo en desarrollo.
+
+## Trampas del editor de dos capas
+
+Cuatro cosas que costaron tiempo. Dos son invisibles en una captura normal, así
+que van aquí además del README.
+
+**`--linea` en px absolutos, nunca `em`.** Con `1.6em` cada elemento lo resuelve
+contra SU font-size: `.mes` (20px) daba 32px en vez de 27.2px, y el error se
+acumulaba hacia abajo. Todas las líneas de abajo quedaban 4.8px corridas
+respecto del caret.
+
+**El alto de TODA línea de la capa de display tiene que ser `--linea`
+exactamente**, incluidos los encabezados. Un encabezado más alto desalinea todo lo
+que viene debajo.
+
+**Hanging indent con `float`, no con `text-indent`.** `padding-left` +
+`text-indent` negativo deja las continuaciones en el borde. Lo que funciona es un
+prefijo invisible con `float: left` y ancho real, más `--ancho-prefijo` medido en
+runtime. Por eso `.prefijo` no puede ser `display: none`.
+
+**Dentro del cuerpo de una línea, solo el color puede cambiar.** Cualquier
+diferencia de `font-weight` o `letter-spacing` entre la capa de display y la
+textarea desplaza el caret respecto de lo que se ve.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

@@ -25,7 +25,7 @@ export function toISODate(date: Date): string {
 }
 
 /** "YYYY-MM-DD" → Date a medianoche local. Al revés que `new Date(iso)`, que
- *  parsea como UTC y en墨西哥 se come un día. */
+ *  parsea como UTC y en un huso horario negativo se come un día. */
 export function fromISODate(iso: string): Date {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, m - 1, d);

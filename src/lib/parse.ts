@@ -23,8 +23,18 @@ export type Task = {
    *  responsables. Los paréntesis de contenido siguen dentro. */
   title: string;
   assignees: string[];
-  /** El prefijo literal que se usó, para poder togglear sin cambiar de carácter. */
-  marker?: string;
+  /**
+   * El prefijo exacto que se usó: `☐ `, `☑ `, `[ ] `, `•  `… El editor lo
+   * reemplaza por el checkbox, así que necesita saber cuántos píxeles ocupaba en
+   * la textarea para poner el botón en el mismo lugar. Vacío si la línea no
+   * tiene marcador.
+   */
+  prefix: string;
+  /** El texto que se ve, después del prefijo y de la hora. Empieza y termina sin
+   *  espacios. La capa de display renderiza esto, no `title`. */
+  body: string;
+  /** "mes" o "dia". Solo en kind === "heading". */
+  heading?: "mes" | "dia";
   /** Índice de la línea en el body. Para el toggle programático del checkbox. */
   index: number;
 };
@@ -101,46 +111,70 @@ function parseAssignees(text: string): { assignees: string[]; title: string } {
 }
 
 function parseLine(raw: string, index: number): Task {
-  const base: Task = { raw, kind: "text", done: false, title: "", assignees: [], index };
+  const base: Task = {
+    raw,
+    kind: "text",
+    done: false,
+    title: "",
+    assignees: [],
+    prefix: "",
+    body: "",
+    index,
+  };
 
   // 1. blank
   if (raw.trim() === "") return { ...base, kind: "blank" };
 
   // 2. heading. Con o sin `#` al inicio, por si escribe Markdown a mano.
   const sinHash = raw.replace(/^#+\s*/, "").trim();
-  if (DIAS_RE.test(sinHash) || MES_RE.test(sinHash)) {
-    return { ...base, kind: "heading", title: sinHash };
+  if (DIAS_RE.test(sinHash)) {
+    return { ...base, kind: "heading", heading: "dia", title: sinHash, body: sinHash };
+  }
+  if (MES_RE.test(sinHash)) {
+    return { ...base, kind: "heading", heading: "mes", title: sinHash, body: sinHash };
   }
 
   // 3. check
   const marker = MARKER_RE.exec(raw);
   if (marker) {
-    const { time, range, rest } = parseTime(raw.slice(marker[0].length));
+    const prefix = marker[0];
+    const { time, range, rest } = parseTime(raw.slice(prefix.length));
     const { assignees, title } = parseAssignees(rest);
     return {
       ...base,
       kind: "check",
-      done: /[☑☒]|\[[xX]\]/.test(marker[0]),
-      marker: marker[0],
+      done: /[☑☒]|\[[xX]\]/.test(prefix),
+      prefix,
       time,
       timeRange: range,
       assignees,
       title,
+      body: rest,
     };
   }
 
   // 4. bullet. done siempre false: un bullet no es una tarea completable.
   const bullet = BULLET_RE.exec(raw);
   if (bullet) {
-    const { time, range, rest } = parseTime(raw.slice(bullet[0].length));
+    const prefix = bullet[0];
+    const { time, range, rest } = parseTime(raw.slice(prefix.length));
     const { assignees, title } = parseAssignees(rest);
-    return { ...base, kind: "bullet", time, timeRange: range, assignees, title };
+    return {
+      ...base,
+      kind: "bullet",
+      prefix,
+      time,
+      timeRange: range,
+      assignees,
+      title,
+      body: rest,
+    };
   }
 
   // 5. text
   const { time, range, rest } = parseTime(raw);
   const { assignees, title } = parseAssignees(rest);
-  return { ...base, time, timeRange: range, assignees, title };
+  return { ...base, time, timeRange: range, assignees, title, body: rest };
 }
 
 /** `""` → `[]`. Un body vacío no tiene una línea en blanco, tiene cero líneas. */
