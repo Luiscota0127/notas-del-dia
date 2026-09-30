@@ -259,10 +259,23 @@ create policy "revocar invitaciones" on agenda_invitaciones
 
 -- Y el invitado ve la suya propia, que es como aparece "te invitaron a X" en la
 -- app. Sin esta policy, abrir una invitación te daría una pantalla vacía.
+--
+-- El email sale de una función security definer y no de un
+-- `(select email from auth.users ...)` en línea: el rol que corre las policies
+-- no tiene SELECT sobre auth.users, y Postgres RECHAZA la policy entera al
+-- crearla. No es un permiso que falte en runtime: la policy ni siquiera existe.
+-- Con la función, que corre como el dueño, funciona.
+create or replace function mi_email(p_uid uuid)
+returns text
+language sql security definer set search_path = public stable as $$
+  select email from auth.users where id = p_uid;
+$$;
+
 drop policy if exists "leer mi invitación" on agenda_invitaciones;
 create policy "leer mi invitación" on agenda_invitaciones
   for select using (
-    lower(email) = lower((select email from auth.users where id = auth.uid()))
+    mi_email(auth.uid()) is not null
+    and lower(email) = lower(mi_email(auth.uid()))
   );
 
 -- notes ----------------------------------------------------------------------

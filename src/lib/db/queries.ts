@@ -158,19 +158,35 @@ export async function invitar(agendaId: string, userId: string, email: string) {
   if (error) throw error;
 }
 
-/** Las invitaciones que te hicieron a vos, para el aviso de "te invitaron a X". */
+/**
+ * Las invitaciones que te hicieron a vos, para el aviso de "te invitaron a X".
+ *
+ * NO tira si la consulta falla. Esta función vive en la pantalla de inicio, y
+ * `/agendas` es justamente donde se entra a una agenda compartida: si fallar
+ * al buscar invitaciones tumba la pantalla, no se puede entrar a ninguna agenda
+ * que sea. Peor todavía: el síntoma es un 404, porque el error sube por la page
+ * y no hay nada que distinguishes de "esta agenda no existe".
+ *
+ * Degradar a "no tenés invitaciones" es lo correcto acá. Una invitación perdida
+ * se vuelve a mandar; una app que no abre, no.
+ */
 export async function getInvitacionesPara(userId: string): Promise<
   Array<Invitacion & { agenda: Agenda | null }>
 > {
   const supabase = await createClient();
   const email = (await getUser())?.email ?? "";
 
+  if (!email) return [];
+
   const { data, error } = await supabase
     .from("agenda_invitaciones")
     .select("*, agendas (id, name, color, created_by, created_at)")
     .ilike("email", email);
 
-  if (error) throw error;
+  if (error) {
+    console.error("getInvitacionesPara:", error.message);
+    return [];
+  }
 
   return (data ?? []).map((i) => ({
     ...i,
@@ -187,7 +203,13 @@ export async function getInvitacionesDe(agendaId: string): Promise<Invitacion[]>
     .eq("agenda_id", agendaId)
     .order("created_at", { ascending: false });
 
-  if (error) throw error;
+  // Mismo criterio que getInvitacionesPara: los ajustes de una agenda no pueden
+  // caerse porque la tabla de invitaciones esté en un mal momento. La agenda se
+  // sigue pudiendo usar.
+  if (error) {
+    console.error("getInvitacionesDe:", error.message);
+    return [];
+  }
   return data ?? [];
 }
 
