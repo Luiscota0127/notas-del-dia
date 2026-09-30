@@ -30,8 +30,10 @@ lo que hay es IndexedDB (`src/lib/cache.ts`), que es justamente el diseño de F5
 ## 2. `/mandado` sin red no abre
 
 **Estado:** verificado que falla; la causa raíz probablemente es la misma que (1).
-Nota: `/mandado` daba 404 con la app entera andando (bug de nombre de carpeta,
-arreglado y con tests). Esto es lo que pasa *además*, sin red.
+
+Con red y sesión, `/mandado` funciona. Lo que falla es sin red, y es *además* del
+bug de carpeta que estaba antes (404 con la app entera andando, arreglado y con
+tests).
 
 Sin red, `/mandado` termina en la página de error del navegador
 (*"No se puede acceder a este sitio web"*), no en la app.
@@ -54,10 +56,10 @@ camino sin red.
 En local esto no se vio porque `?demo=1` atendía todo por SSR y el perfil del
 navegador ya tenía caches de corridas anteriores.
 
-**Necesito de vos:** qué pasa exactamente con `/mandado` *con red* y con sesión.
-Sin una sesión real no puedo reproducirlo, y con la confirmación de email apagada
-no puedo obtenerla por API (ver `confirmacion-email-off.md`). Con el síntoma
-—error, pantalla en blanco, 500, la lista vacía— se puede acotar en un paso.
+Para probarlo con red hace falta una sesión, y con la confirmación ya prendida
+tampoco se puede sacar por API. Alguien tiene que abrir el correo y tocar el
+link, y ahí avisar qué pasa — error, pantalla en blanco, 500, la lista vacía. Con
+el síntoma se acota en un paso.
 
 ## 3. El `localhost` no está en el código
 
@@ -88,14 +90,13 @@ Lo raro es que la petición del magic link la aceptara. Acepta y aun así manda 
 link a la Site URL si el destino no está en la lista de permitidos — son dos
 validaciones distintas.
 
-## 4. La confirmación de email de Supabase sigue apagada
+## 4. La confirmación de email — CERRADO
 
-**Estado:** verificado, es lo más urgente de todo.
+**Estado:** prendida. Verificado con `GET /auth/v1/settings` →
+`"mailer_autoconfirm": false`.
 
-`GET /auth/v1/settings` responde `"mailer_autoconfirm": true`.
-
-Con eso, cualquiera que sepa `luiscota2701@gmail.com` pide un link y entra a leer
-y escribir las notas. La app ya está en internet. Ver `confirmacion-email-off.md`.
+La ventana de desarrollo en la que cualquiera con el correo podía entrar como
+esa persona está cerrada. Ver `confirmacion-email-off.md`.
 
 ## 5. Encolar en el service worker es más caro de lo que parece
 
