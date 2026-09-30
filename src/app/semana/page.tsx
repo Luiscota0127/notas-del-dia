@@ -3,7 +3,7 @@ import Link from "next/link";
 import { addDays, formatDayHeading, fromISODate, todayISO } from "@/lib/format";
 import { getNote, requireUser } from "@/lib/db/queries";
 import { countChecks, parseNote } from "@/lib/parse";
-import { NOTA_DEMO } from "@/lib/demo";
+import { esDemo, NOTA_DEMO } from "@/lib/demo";
 
 /**
  * Vista Semana. Server Component: lee directo de Postgres.
@@ -13,9 +13,8 @@ import { NOTA_DEMO } from "@/lib/demo";
  */
 export default async function SemanaPage({ searchParams }: PageProps<"/semana">) {
   const q = await searchParams;
-  const demo = q.demo === "1";
 
-  if (demo) return <SemanaDemo />;
+  if (esDemo(q.demo)) return <SemanaDemo />;
 
   const user = await requireUser();
   const fecha =

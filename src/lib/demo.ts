@@ -7,6 +7,21 @@
  *
  * Copia literal de .opencode/skills/notas-formato/references/ejemplo-real.md
  */
+
+/**
+ * ¿Entró por el atajo de desarrollo `?demo=1`?
+ *
+ * El chequeo de NODE_ENV va ACÁ y no en cada página porque el otro día se olvidó
+ * en una de las tres: el atajo es `q.demo === "1"`, la nota de producción venía
+ * vacía de `notaDePrueba()`, y la página renderizaba igual — con nombres falsos
+ * y sin pasar por el login. Con el repo público, `/mandado?demo=1` abría una
+ * lista de ejemplo a cualquiera que visitara la URL. Acá no hay forma de que
+ * production se cuele: si no es desarrollo, no hay demo.
+ */
+export function esDemo(param: string | string[] | undefined): boolean {
+  return param === "1" && process.env.NODE_ENV !== "production";
+}
+
 export const NOTA_DEMO = `SEPTIEMBRE
 
 ☐ 08 sep (dosis 3 de anti pulgas mishibu)

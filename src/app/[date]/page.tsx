@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { addDays } from "@/lib/format";
-import { NOTA_DEMO } from "@/lib/demo";
+import { esDemo, NOTA_DEMO } from "@/lib/demo";
 import { getNotes, getPartner, getProfile, requireUser } from "@/lib/db/queries";
 
 import { BarraNavegacion } from "@/components/BarraNavegacion";
@@ -12,18 +12,6 @@ import { NoteEditor } from "@/components/editor/NoteEditor";
  * acá con la fecha real del servidor, para que el link de un día sí sea
  * compartible.
  */
-/**
- * El atajo ?demo=1 renderiza la nota de la referencia sin backend. Existe solo
- * en desarrollo: en producción devuelve null y cae al flujo normal con login.
- *
- * La nota viene de src/lib/demo.ts, no de una env var: es un fixture, y las env
- * vars no deberían ser la fuente de verdad de nada.
- */
-function notaDePrueba(): string | null {
-  if (process.env.NODE_ENV === "production") return null;
-  return NOTA_DEMO;
-}
-
 export default async function NotaPage({
   params,
   searchParams,
@@ -34,8 +22,10 @@ export default async function NotaPage({
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) notFound();
 
   // Atajo de desarrollo: /2026-09-01?demo=1 renderiza la nota de referencia.
-  if (q.demo === "1") {
-    const demo = notaDePrueba() ?? "";
+  // `esDemo` ya devuelve false en producción, así que acá no llega nunca: en el
+  // deploy el atajo cae al requireUser() de abajo y termina en /login.
+  if (esDemo(q.demo)) {
+    const demo = NOTA_DEMO;
     // Días vecinos con contenido, para que el calendario y el buscador tengan
     // algo que mostrar sin Supabase.
     const cuerpos: Record<string, string> = {

@@ -1,4 +1,5 @@
 import { getLista, getPartner, getProfile, requireUser } from "@/lib/db/queries";
+import { esDemo } from "@/lib/demo";
 
 import { ListaEditor } from "./ListaEditor";
 
@@ -26,7 +27,8 @@ export default async function MandadoPage({
   const q = await searchParams;
 
   // Mismo atajo que las notas: /mandado?demo=1 renderiza sin backend.
-  if (q.demo === "1") {
+  // `esDemo` es false en producción, así que acá no llega nunca y cae al login.
+  if (esDemo(q.demo)) {
     return (
       <main className="md:grid md:grid-cols-[auto_1fr] md:gap-8">
         <aside className="hidden md:block p-4 sticky top-0 h-dvh self-start">
