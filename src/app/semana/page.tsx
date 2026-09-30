@@ -65,7 +65,13 @@ function Semana({
 
   return (
     <main className="p-4 md:p-8 max-w-2xl">
-      <Link href="/hoy" className="text-dim text-sm hover:text-accent">
+      {/* py-2.5: sin padding el link mide 19px de alto y es difícil de tocar con
+          el dedo. Apple's guideline dice 44px; acá compite con el título y con
+          la lista, así que 40 es el punto donde se toca bien sin empujar todo. */}
+      <Link
+        href="/hoy"
+        className="inline-block -ml-1 px-1 py-2.5 text-dim text-sm hover:text-accent"
+      >
         ← Volver
       </Link>
 

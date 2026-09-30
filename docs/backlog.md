@@ -30,6 +30,8 @@ lo que hay es IndexedDB (`src/lib/cache.ts`), que es justamente el diseño de F5
 ## 2. `/mandado` sin red no abre
 
 **Estado:** verificado que falla; la causa raíz probablemente es la misma que (1).
+Nota: `/mandado` daba 404 con la app entera andando (bug de nombre de carpeta,
+arreglado y con tests). Esto es lo que pasa *además*, sin red.
 
 Sin red, `/mandado` termina en la página de error del navegador
 (*"No se puede acceder a este sitio web"*), no en la app.
@@ -111,3 +113,34 @@ vivir en `/hoy` en vez de en `/login`.
 Con la confirmación apagada no se nota porque no hay correo. Prendiéndola vuelve.
 La salida es SMTP propio (Resend o Brevo), que además es lo que corresponde en
 producción: el SMTP por defecto de Supabase es de desarrollo.
+
+## 7. El textarea pierde los saltos de línea en el HTML del servidor
+
+**Estado:** cerrado, era consecuencia del bug de la carpeta.
+
+Renderizado de `/mandado`, el `<textarea>` llegaba con 87 caracteres y **cero
+saltos de línea**: las seis líneas de la listavenues unidas con espacios.
+
+```
+repr: ☐ pan ☐ leche (descremada) ☐ huevos ☑ café • cosas del depot papel de cocina
+```
+
+La capa de display (`.capa`) sí renderizaba las seis líneas, así que a simple
+vista la pantalla estaba bien y el bug quedaba oculto: recién al editar se
+habría notado, cuando la lista entera se reemplaza por esa versión pegada.
+
+Causa: no era el `\n` en sí. El HTML bien formado, y la causa de fondo era que
+estaba mirando `/mamado?demo=1`, una ruta que el navegador servía desde una
+página de error con contenido de la página anterior. Al corregir la carpeta a
+`/mandado`, el textarea llegó con sus saltos de línea correctos.
+
+Vale la pena revisarlo si algún día el editor muestra una lista pegada en
+pantalla completa pero el contenido real está bien.
+
+## 8. Verificar el `sw.js` con el VERSION correcto en cada deploy
+
+**Estado:** anotado, proceso.
+
+Cambiar `VERSION` en `public/sw.js` es obligatorio en cada deploy. Si no, el
+navegador no reinstala nada y el iPhone sigue con el bundle viejo para siempre.
+No hay forma de que la app se dé cuenta sola.

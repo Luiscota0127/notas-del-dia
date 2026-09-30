@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef } from "react";
 
 import { useLista, useOnline, useVaciarCola } from "@/lib/hooks/useCache";
@@ -197,7 +198,22 @@ export function ListaEditor({
 
   return (
     <div className="p-4 md:p-8">
-      <header className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      {/* Mismo link que /semana, mismo estilo. Sin esto, en el iPhone —donde el
+          aside es hidden— la lista era una pantalla sin salida: se entraba desde
+          la nota y no se volvía.
+
+          El padding vertical no es decorativo: sin él el link mide 19px de alto
+          y es difícil de tocar con el dedo. Apple's guideline son 44px; acá
+          compite con el título, así que py-2.5 (40px) es el punto donde se toca
+          bien sin empujar el contenido. Medido, no supuesto: py-2 daba 36. */}
+      <Link
+        href="/hoy"
+        className="inline-block -ml-1 px-1 py-2.5 text-dim text-sm hover:text-accent"
+      >
+        ← Volver
+      </Link>
+
+      <header className="mt-4 flex flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <h1 className="text-xl">Mandado</h1>
           <p className="text-dim text-sm truncate">
