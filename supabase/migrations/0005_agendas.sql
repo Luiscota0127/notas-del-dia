@@ -82,10 +82,51 @@ language sql security definer set search_path = public stable as $$
 $$;
 
 -- ---------------------------------------------------------------------------
--- Trigger de alta: cada persona nueva recibe su agenda personal
+-- Crear una agenda con su dueño adentro
 -- ---------------------------------------------------------------------------
+--
+-- Deadlock de RLS, y es importante entender por qué antes de tocar esto.
+--
+-- La policy de `agenda_miembros` para insertar exige `es_dueno(agenda_id,
+-- auth.uid())`. Y `es_dueno()` pregunta si ya hay una fila en `agenda_miembros`.
+-- Al crear una agenda, esa fila NO existe todavía —es lo que se está trying de
+-- insertar—, así que `es_dueno` devuelve false y Postgres rechaza el insert.
+--
+-- El dueño nunca puede volverse miembro de su propia agenda. La agenda se crea
+-- y queda huérfana: visible para el owner por `created_by`, pero sin miembros, así
+-- que la RLS de leer (`es_miembro`) la esconde y no aparece en ningún lado.
+--
+-- Por eso la alta NO pueden hacerla dos inserts desde el cliente. Va en una
+-- función security definer, que corre como el dueño de la base y saltea la RLS:
+-- el guardián es que el que llama es el mismo `created_by`.
+create or replace function crear_agenda(p_creator uuid, p_name text)
+returns agendas
+language plpgsql security definer set search_path = public as $$
+declare
+  v_agenda agendas;
+begin
+  insert into agendas (name, created_by)
+  values (p_name, p_creator)
+  returning * into v_agenda;
+
+  insert into agenda_miembros (agenda_id, profile_id, rol)
+  values (v_agenda.id, p_creator, 'dueno');
+
+  return v_agenda;
+end;
+$$;
+
+-- Que solo quien está autenticado la pueda llamar.
+revoke all on function crear_agenda(uuid, text) from anon;
+grant execute on function crear_agenda(uuid, text) to authenticated;
 -- Se extiende handle_new_user en vez de agregar otro trigger, para que el alta
 -- sea una sola transacción: profile, agenda y membresía, o nada.
+-- ---------------------------------------------------------------------------
+-- Trigger de alta: cada persona nueva recibe su agenda personal
+-- ---------------------------------------------------------------------------
+-- El mismo deadlock de RLS que arriba, resuelto por el mismo motivo: el trigger
+-- es security definer, así que los dos inserts pasan sin la RLS que los
+-- frenaría.
 create or replace function handle_new_user() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare

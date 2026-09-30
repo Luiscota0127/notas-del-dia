@@ -117,25 +117,33 @@ export async function getAgendaPorDefecto(): Promise<Agenda | null> {
   return agendas[0] ?? null;
 }
 
-/** Crea una agenda con uno como dueño, y ya es miembro. */
+/**
+ * Crea una agenda con uno como dueño, y ya es miembro.
+ *
+ * Va por la función `crear_agenda` y no con dos inserts desde acá. La RLS de
+ * `agenda_miembros` exige `es_dueno(agenda_id, auth.uid())` para poder insertar,
+ * y `es_dueno` pregunta si esa fila YA existe — que es justamente lo que se
+ * está insertando. Con dos inserts desde el cliente, el primero anda y el
+ * segundo es rechazado siempre: el dueño nunca llega a ser miembro de su propia
+ * agenda, y la agenda queda huérfana, invisible para todos.
+ *
+ * La función es security definer, así que saltea ese deadlock. La protección no
+ * se pierde: el `created_by` es el del usuario de la sesión.
+ */
 export async function createAgenda(userId: string, name: string): Promise<Agenda | null> {
   const supabase = await createClient();
 
   const {
-    data: agenda,
+    data,
     error,
-  } = await supabase.from("agendas").insert({ name, created_by: userId }).select("*").single();
+  } = await supabase.rpc("crear_agenda", { p_creator: userId, p_name: name });
 
   if (error) throw error;
 
-  // El insert de la membresía no puede depender de la agenda: la RLS de
-  // agenda_miembros exige es_dueno, y el dueño todavía no es nadie en esa tabla.
-  const { error: errorMiembro } = await supabase
-    .from("agenda_miembros")
-    .insert({ agenda_id: agenda.id, profile_id: userId, rol: "dueno" });
-
-  if (errorMiembro) throw errorMiembro;
-  return agenda;
+  // La función devuelve la fila como objeto o como array según la versión de
+  // PostgREST; normalizo las dos formas para no depender de eso.
+  const agenda = (Array.isArray(data) ? data[0] : data) as Agenda | null;
+  return agenda ?? null;
 }
 
 export async function renameAgenda(agendaId: string, name: string) {

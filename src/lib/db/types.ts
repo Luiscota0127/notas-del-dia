@@ -190,7 +190,20 @@ export type Database = {
       };
     };
     Views: Record<never, never>;
-    Functions: Record<never, never>;
+    Functions: {
+      /**
+       * Crea la agenda y su membresía de dueño en una sola llamada.
+       *
+       * Vive en la base y no en el cliente por el deadlock de RLS: la policy de
+       * `agenda_miembros` exige `es_dueno()`, que a su vez pregunta si esa fila
+       * ya existe. Desde el cliente, el segundo insert es rechazado siempre.
+       * Ver `0007_crear-agenda-rls.sql`.
+       */
+      crear_agenda: {
+        Args: { p_creator: string; p_name: string };
+        Returns: Database["public"]["Tables"]["agendas"]["Row"];
+      };
+    };
     Enums: Record<never, never>;
     CompositeTypes: Record<never, never>;
   };
