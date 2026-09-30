@@ -17,13 +17,15 @@ import "@/components/editor/layers.css";
  * red, cola si no.
  */
 export function ListaEditor({
+  agendaId,
   initialBody,
   partner,
 }: {
+  agendaId: string;
   initialBody: string;
   partner: { name: string } | null;
 }) {
-  const { body, setBody, estado } = useLista(initialBody);
+  const { body, setBody, estado } = useLista(agendaId, initialBody);
   const online = useOnline();
   useVaciarCola(online);
 
@@ -207,7 +209,7 @@ export function ListaEditor({
           compite con el título, así que py-2.5 (40px) es el punto donde se toca
           bien sin empujar el contenido. Medido, no supuesto: py-2 daba 36. */}
       <Link
-        href="/hoy"
+        href={`/${agendaId}`}
         className="inline-block -ml-1 px-1 py-2.5 text-dim text-sm hover:text-accent"
       >
         ← Volver

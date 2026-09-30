@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireUser, saveLista, saveNote } from "@/lib/db/queries";
+import {
+  createAgenda,
+  requireUser,
+  renameAgenda,
+  saveLista,
+  saveNote,
+} from "@/lib/db/queries";
 
 /**
  * Autoguardado. Recibe el body entero porque es la única fuente de verdad: no
@@ -13,25 +19,47 @@ import { requireUser, saveLista, saveNote } from "@/lib/db/queries";
  * el shell cacheado con un 200. El cliente vería "éxito" y no pondría nada en la
  * cola, y la nota se perdería. Con el flag, el cliente sabe que no se guardó.
  */
-export async function guardarNota(date: string, body: string) {
+export async function guardarNota(agendaId: string, date: string, body: string) {
   try {
-    const user = await requireUser();
-    await saveNote(user.id, date, body);
-    revalidatePath(`/${date}`);
+    await requireUser();
+    await saveNote(agendaId, date, body);
+    revalidatePath(`/${agendaId}/${date}`);
     return { guardado: true as const };
   } catch (e) {
     return { guardado: false as const, motivo: String(e) };
   }
 }
 
-/** La lista de mandado. Compartida, así que no lleva user_id. */
-export async function guardarLista(body: string) {
+/** La lista de mandado de una agenda. Compartida, así que no lleva user_id. */
+export async function guardarLista(agendaId: string, body: string) {
   try {
     await requireUser();
-    await saveLista(body);
-    revalidatePath("/mandado");
+    await saveLista(agendaId, body);
+    revalidatePath(`/${agendaId}/mandado`);
     return { guardado: true as const };
   } catch (e) {
     return { guardado: false as const, motivo: String(e) };
+  }
+}
+
+export async function crearAgenda(nombre: string) {
+  try {
+    const user = await requireUser();
+    const agenda = await createAgenda(user.id, nombre);
+    revalidatePath("/agendas");
+    return { creada: true as const, agendaId: agenda?.id ?? null };
+  } catch (e) {
+    return { creada: false as const, motivo: String(e) };
+  }
+}
+
+export async function renombrarAgenda(agendaId: string, nombre: string) {
+  try {
+    await requireUser();
+    await renameAgenda(agendaId, nombre);
+    revalidatePath(`/${agendaId}`);
+    return { renombrada: true as const };
+  } catch (e) {
+    return { renombrada: false as const, motivo: String(e) };
   }
 }

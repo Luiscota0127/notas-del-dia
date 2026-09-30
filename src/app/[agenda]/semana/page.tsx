@@ -1,30 +1,47 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
 import { addDays, formatDayHeading, fromISODate, todayISO } from "@/lib/format";
-import { getNote, requireUser } from "@/lib/db/queries";
+import { getAgenda, getNote, requireUser } from "@/lib/db/queries";
 import { countChecks, parseNote } from "@/lib/parse";
 import { esDemo, NOTA_DEMO } from "@/lib/demo";
 
+import { AGENDA_DEMO } from "../demo";
+
 /**
- * Vista Semana. Server Component: lee directo de Postgres.
+ * Vista Semana de una agenda: `/[agenda]/semana`.
  *
  * Con 7 días son 7 queries de una fila; cuando haga falta, esto se vuelve una
  * sola con `in.()`. A dos personas no vale la pena.
  */
-export default async function SemanaPage({ searchParams }: PageProps<"/semana">) {
+export default async function SemanaPage({
+  params,
+  searchParams,
+}: PageProps<"/[agenda]/semana">) {
+  const { agenda: agendaId } = await params;
   const q = await searchParams;
 
-  if (esDemo(q.demo)) return <SemanaDemo />;
+  if (esDemo(q.demo)) {
+    const lunes = lunesDe(todayISO());
+    const dias = Array.from({ length: 7 }, (_, i) => {
+      const date = addDays(lunes, i);
+      // Solo algunos días tienen nota, para que se vean los contadores.
+      const body = i % 2 === 0 ? NOTA_DEMO : i === 1 ? "☐ comprar café\n☐ llamar a Luis" : "";
+      return { date, body, ...countChecks(parseNote(body)) };
+    });
+    return <Semana agendaId={AGENDA_DEMO} dias={dias} lunes={lunes} />;
+  }
 
   const user = await requireUser();
+  const agenda = await getAgenda(agendaId);
+  if (!agenda) notFound();
+
   const fecha =
-    typeof q.fecha === "string" && /^\d{4}-\d{2}-\d{2}$/.test(q.fecha)
-      ? q.fecha
-      : todayISO();
+    typeof q.fecha === "string" && /^\d{4}-\d{2}-\d{2}$/.test(q.fecha) ? q.fecha : todayISO();
 
   const lunes = lunesDe(fecha);
   const notas = await Promise.all(
-    Array.from({ length: 7 }, (_, i) => getNote(user.id, addDays(lunes, i))),
+    Array.from({ length: 7 }, (_, i) => getNote(agendaId, addDays(lunes, i))),
   );
 
   const dias = notas.map((nota, i) => {
@@ -33,7 +50,7 @@ export default async function SemanaPage({ searchParams }: PageProps<"/semana">)
     return { date, body, ...countChecks(parseNote(body)) };
   });
 
-  return <Semana dias={dias} lunes={lunes} />;
+  return <Semana agendaId={agendaId} dias={dias} lunes={lunes} />;
 }
 
 function lunesDe(fecha: string): string {
@@ -41,21 +58,12 @@ function lunesDe(fecha: string): string {
   return addDays(fecha, -((d.getDay() + 6) % 7));
 }
 
-async function SemanaDemo() {
-  const lunes = lunesDe(todayISO());
-  const dias = Array.from({ length: 7 }, (_, i) => {
-    const date = addDays(lunes, i);
-    // Solo algunos días tienen nota, para que se vean los contadores.
-    const body = i % 2 === 0 ? NOTA_DEMO : i === 1 ? "☐ comprar café\n☐ llamar a Luis" : "";
-    return { date, body, ...countChecks(parseNote(body)) };
-  });
-  return <Semana dias={dias} lunes={lunes} />;
-}
-
 function Semana({
+  agendaId,
   dias,
   lunes,
 }: {
+  agendaId: string;
   dias: Array<{ date: string; body: string; total: number; hechos: number }>;
   lunes: string;
 }) {
@@ -69,7 +77,7 @@ function Semana({
           el dedo. Apple's guideline dice 44px; acá compite con el título y con
           la lista, así que 40 es el punto donde se toca bien sin empujar todo. */}
       <Link
-        href="/hoy"
+        href={`/${agendaId}/${lunes}`}
         className="inline-block -ml-1 px-1 py-2.5 text-dim text-sm hover:text-accent"
       >
         ← Volver
@@ -91,7 +99,7 @@ function Semana({
           return (
             <li key={dia.date}>
               <Link
-                href={`/${dia.date}`}
+                href={`/${agendaId}/${dia.date}`}
                 className="block border border-line rounded p-3 hover:bg-elevated"
               >
                 <div className="flex items-baseline justify-between gap-3">

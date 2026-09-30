@@ -6,14 +6,13 @@ import { requireUser } from "@/lib/db/queries";
 import { createClient } from "@/lib/db/server";
 
 /**
- * Server Actions usadas como `action` de un <form>.
+ * Server Actions de los ajustes personales.
  *
  * Reciben FormData, no un argumento suelto: es la firma que React exige para
- * usarlas sin un wrapper. Por eso el `name` del input es "name" y el del
- * radio es "notify", y se leen acá.
+ * usarlas sin un wrapper.
  */
 
-/** Cambia el nombre propio. Es lo que se ve en la vista "Ambas". */
+/** Cambia el nombre propio. Es lo que ven los demás en las agendas. */
 export async function guardarNombre(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
@@ -25,6 +24,7 @@ export async function guardarNombre(formData: FormData) {
   if (error) throw error;
 
   revalidatePath("/ajustes");
+  revalidatePath("/agendas");
 }
 
 /** Preferencia de avisos: "all" | "mine" | "none". */

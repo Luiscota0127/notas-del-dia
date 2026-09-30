@@ -48,7 +48,9 @@ export async function proxy(request: NextRequest) {
 
   if (user && isPublic) {
     const url = request.nextUrl.clone();
-    url.pathname = "/hoy";
+    // /agendas y no /: la primera agenda se elige ahí. Mandar a "/" solo
+    // funcionaría después de un round-trip extra al servidor para resolver cuál.
+    url.pathname = "/agendas";
     url.search = "";
     return NextResponse.redirect(url);
   }

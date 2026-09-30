@@ -89,12 +89,15 @@ type Atajos = {
  * Navegación por fecha. Conserva `?demo=1` cuando está activo, para que el modo
  * de desarrollo sobreviva a los saltos de día.
  */
-export function useNavegacionFecha(fecha: string) {
+export function useNavegacionFecha(agendaId: string, fecha: string) {
   const router = useRouter();
   const params = useSearchParams();
   const demo = params.get("demo") === "1" ? "?demo=1" : "";
 
-  const ir = (nueva: string) => router.push(`/${nueva}${demo}`);
+  // Toda ruta de la app lleva la agenda adelante. `/[agenda]/[fecha]` es el
+  // patrón, y armar la URL en un solo lugar evita que un href se quede colgado
+  // con la agenda vieja cuando se cambia de contexto.
+  const ir = (nueva: string) => router.push(`/${agendaId}/${nueva}${demo}`);
 
   return {
     /** El sufijo actual, para que quien navegue lo conserve. */
@@ -105,7 +108,7 @@ export function useNavegacionFecha(fecha: string) {
     siguiente: () => ir(addDays(fecha, 1)),
     ayer: () => ir(addDays(fecha, -1)),
     manana: () => ir(addDays(fecha, 1)),
-    semana: () => router.push(`/semana${demo}`),
+    semana: () => router.push(`/${agendaId}/semana${demo}`),
   };
 }
 

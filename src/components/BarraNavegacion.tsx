@@ -13,11 +13,14 @@ import { formatLong, fromISODate, todayISO } from "@/lib/format";
  * El editor no sabe nada de esto.
  */
 export function BarraNavegacion({
+  agendaId,
   fecha,
   cuerpos,
   me,
   partner,
+  nombreAgenda,
 }: {
+  agendaId: string;
   fecha: string;
   /**
    * Los bodies de un rango alrededor de la fecha. Los contadores del calendario
@@ -25,10 +28,12 @@ export function BarraNavegacion({
    * `dias` server-side: sería el mismo dato dos veces.
    */
   cuerpos: Record<string, string>;
-  me: { id: string; name: string };
-  partner: { id: string; name: string } | null;
+  me: { id: string; name: string; color?: string };
+  partner: { id: string; name: string; color?: string } | null;
+  /** Se muestra arriba: con varias agendas abiertas, saber cuál es cuál importa. */
+  nombreAgenda?: string;
 }) {
-  const nav = useNavegacionFecha(fecha);
+  const nav = useNavegacionFecha(agendaId, fecha);
   const [buscadorAbierto, setBuscadorAbierto] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
 
@@ -58,7 +63,7 @@ export function BarraNavegacion({
       {/* iPhone: cabecera compacta + menú. No hay sidebar, no entra. */}
       <header className="md:hidden flex items-center gap-2 px-3 py-2 border-b border-line sticky top-0 bg-bg z-20">
         <Link
-          href={`/${todayISO()}${nav.demo}`}
+          href={`/${agendaId}/${todayISO()}${nav.demo}`}
           className="text-sm font-medium hover:text-accent shrink-0"
         >
           {esHoy ? "Hoy" : formatCorto(fecha)}
@@ -101,16 +106,19 @@ export function BarraNavegacion({
           </div>
           <div className="flex flex-col gap-2">
             <Link
-              href={`/mandado${nav.demo}`}
+              href={`/${agendaId}/mandado${nav.demo}`}
               className="text-sm text-dim hover:text-accent"
             >
               Mandado
             </Link>
             <Link
-              href={`/semana${nav.demo}`}
+              href={`/${agendaId}/semana${nav.demo}`}
               className="text-sm text-dim hover:text-accent"
             >
               Ver la semana
+            </Link>
+            <Link href="/agendas" className="text-sm text-dim hover:text-accent">
+              Cambiar de agenda
             </Link>
           </div>
         </div>
@@ -143,7 +151,7 @@ export function BarraNavegacion({
             </button>
           </div>
           <Link
-            href={`/semana${nav.demo}`}
+            href={`/${agendaId}/semana${nav.demo}`}
             className="text-dim hover:text-accent"
           >
             Ver la semana
@@ -157,15 +165,29 @@ export function BarraNavegacion({
             <kbd className="text-dim text-xs ml-1">Ctrl K</kbd>
           </button>
           <Link
-            href={`/mandado${nav.demo}`}
+            href={`/${agendaId}/mandado${nav.demo}`}
             className="text-dim hover:text-accent font-medium"
           >
             Mandado
           </Link>
-          <Link href="/ajustes" className="text-dim hover:text-accent mt-2">
-            {me.name}
-            {partner ? ` y ${partner.name}` : ""}
-          </Link>
+
+          {nombreAgenda && (
+            <div className="mt-4 pt-3 border-t border-line flex flex-col gap-1 text-sm">
+              <Link
+                href={`/${agendaId}/ajustes${nav.demo}`}
+                className="text-dim hover:text-accent"
+              >
+                Ajustes de {nombreAgenda}
+              </Link>
+              <Link href="/agendas" className="text-dim hover:text-accent">
+                Cambiar de agenda
+              </Link>
+              <Link href="/ajustes" className="text-dim hover:text-accent">
+                {me.name}
+                {partner ? ` y ${partner.name}` : ""}
+              </Link>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -173,6 +195,7 @@ export function BarraNavegacion({
           la selección arrancan vacíos sin un setState en un efecto. */}
       <Buscador
         key={buscadorAbierto ? "abierto" : "cerrado"}
+        agendaId={agendaId}
         bodies={cuerpos}
         abierto={buscadorAbierto}
         onCerrar={() => setBuscadorAbierto(false)}

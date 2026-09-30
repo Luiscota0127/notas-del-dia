@@ -1,8 +1,20 @@
 import { redirect } from "next/navigation";
 
-import { todayISO } from "@/lib/format";
+import { getAgendaPorDefecto, requireUser } from "@/lib/db/queries";
 
-/** "/" y "/hoy" van a la nota de hoy. El link de un día sí es compartible. */
-export default function Home() {
-  redirect(`/${todayISO()}`);
+/**
+ * `/` va a la primera agenda.
+ *
+ * "Primera" y no "la última abierta": esta última cambiaría debajo de los dedos
+ * de quien está escribiendo en la agenda de siempre. La primera es estable.
+ *
+ * Si no hay ninguna, se cae en /agendas, que es donde se crea la primera.
+ */
+export default async function Home() {
+  const user = await requireUser();
+
+  const agenda = await getAgendaPorDefecto(user.id);
+  if (!agenda) redirect("/agendas");
+
+  redirect(`/${agenda.id}`);
 }

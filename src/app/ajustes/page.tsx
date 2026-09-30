@@ -1,23 +1,20 @@
 import Link from "next/link";
 
-import { getPartner, getProfile, requireUser } from "@/lib/db/queries";
-import { ToggleTema } from "./ToggleTema";
+import { getProfile, requireUser } from "@/lib/db/queries";
+import { ToggleTema } from "@/app/ajustes/ToggleTema";
 import { guardarAvisos, guardarNombre } from "./acciones";
 
 /**
- * Ajustes. Mínimo: el nombre (que se ve en la vista "Ambas"), la preferencia de
- * avisos y el tema. Los recordatorios se configuran desde F4.
+ * Ajustes personales. Son de la persona, no de la agenda: no cambian al cambiar
+ * de agenda, así que viven acá y no en `/[agenda]/ajustes`.
  */
 export default async function AjustesPage() {
   const user = await requireUser();
-  const [profile, partner] = await Promise.all([
-    getProfile(user.id),
-    getPartner(user.id),
-  ]);
+  const profile = await getProfile(user.id);
 
   return (
     <main className="p-4 md:p-8 max-w-lg">
-      <Link href="/hoy" className="text-dim text-sm hover:text-accent">
+      <Link href="/agendas" className="text-dim text-sm hover:text-accent">
         ← Volver
       </Link>
 
@@ -39,21 +36,10 @@ export default async function AjustesPage() {
             Guardar
           </button>
         </form>
+        <p className="text-dim text-sm">
+          Es el nombre que ven los demás en las agendas donde sos parte.
+        </p>
       </section>
-
-      {partner && (
-        <section className="mb-8">
-          <p className="text-sm text-dim mb-1">La otra libreta</p>
-          <p className="flex items-center gap-2">
-            <span
-              className="w-2.5 h-2.5 rounded-full inline-block"
-              style={{ background: partner.color }}
-              aria-hidden="true"
-            />
-            {partner.name}
-          </p>
-        </section>
-      )}
 
       <section className="mb-8">
         <p className="text-sm text-dim mb-2">Qué avisos recibís</p>
@@ -84,7 +70,7 @@ export default async function AjustesPage() {
         </ul>
       </section>
 
-      <section>
+      <section className="mb-8">
         <p className="text-sm text-dim mb-2">Tema</p>
         <ToggleTema />
       </section>

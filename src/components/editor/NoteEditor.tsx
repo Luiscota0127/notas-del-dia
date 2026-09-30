@@ -32,19 +32,25 @@ import "./layers.css";
  */
 
 export function NoteEditor({
+  agendaId,
   date,
   initialBody,
   me,
   partner,
 }: {
+  agendaId: string;
   date: string;
   initialBody: string;
-  me: { id: string; name: string };
-  partner: { id: string; name: string } | null;
+  me: { id: string; name: string; color?: string };
+  partner: { id: string; name: string; color?: string } | null;
 }) {
   // El estado y el autoguardado viven en useNota: cache primero, servidor si hay
   // red, cola si no. El editor solo manipula el string.
-  const { body, setBody, estado } = useNota(date, initialBody || emptyNoteTemplate(date));
+  const { body, setBody, estado } = useNota(
+    agendaId,
+    date,
+    initialBody || emptyNoteTemplate(date),
+  );
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const capaRef = useRef<HTMLDivElement>(null);

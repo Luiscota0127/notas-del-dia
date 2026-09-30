@@ -36,7 +36,7 @@ export function ContinuarSesion() {
       if (evento === "SIGNED_IN" || evento === "INITIAL_SESSION") {
         setListo(true);
         // replace, no push: el link del magic no debe quedar en el historial.
-        router.replace("/hoy");
+        router.replace("/agendas");
         // refresh: el server component vuelve a leer la cookie y deja de mandar
         // a /login.
         router.refresh();
@@ -55,7 +55,7 @@ export function ContinuarSesion() {
       if (intento.current++ > 3) return;
       const { data } = await createClient().auth.getSession();
       if (data.session) {
-        router.replace("/hoy");
+        router.replace("/agendas");
         router.refresh();
       }
     }, 800);

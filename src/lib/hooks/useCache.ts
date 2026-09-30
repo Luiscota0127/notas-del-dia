@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import {
+  claveEntrada,
   encolar,
   guardarListaEnCache,
   guardarNotaEnCache,
+  hayCache,
   leerCola,
   leerLista,
   leerNota,
@@ -13,16 +15,7 @@ import {
   sacarDeLaCola,
 } from "@/lib/cache";
 import { guardarLista, guardarNota } from "@/app/acciones";
-import { hayCache } from "@/lib/cache";
 
-/**
- * ¿Estamos con red?
- *
- * `navigator.onLine` miente: dice true con WiFi de cafetería sin internet, y
- * false solo cuando el SO sabe que no hay. Por eso, además de escucharlo, cada
- * escritura intenta guardarla en el servidor: si falla, es que no hay red, diga
- * lo que diga la API.
- */
 /**
  * `navigator.onLine` no es un estado de React: es del sistema. useSyncExternalStore
  * es exactamente para eso, y evita el setState-en-un-efecto que dispara un
@@ -57,9 +50,9 @@ export function useVaciarCola(online: boolean) {
       const cola = await leerCola();
       for (const e of cola) {
         try {
-          if (e.tipo === "nota") await guardarNota(e.fecha, e.body);
-          else await guardarLista(e.body);
-          await sacarDeLaCola(e.tipo === "nota" ? `nota:${e.fecha}` : "lista");
+          if (e.tipo === "nota") await guardarNota(e.agendaId, e.fecha, e.body);
+          else await guardarLista(e.agendaId, e.body);
+          await sacarDeLaCola(claveEntrada(e.tipo, e.agendaId, e.fecha));
         } catch {
           // Sigue sin red. Se corta acá y se reintenta en el próximo online.
           Corriendo.current = false;
@@ -92,7 +85,7 @@ export type Estado = "guardado" | "guardando" | "sin-conexion" | "error";
  * muestra lo mismo al instante y después se actualiza. Al revés, la app
  * arrancaría esperando el servidor en cada apertura.
  */
-export function useNota(fecha: string, inicialDelServidor: string) {
+export function useNota(agendaId: string, fecha: string, inicialDelServidor: string) {
   const [body, setBody] = useState(inicialDelServidor);
   const [estado, setEstado] = useState<Estado>("guardado");
   const online = useOnline();
@@ -104,17 +97,17 @@ export function useNota(fecha: string, inicialDelServidor: string) {
   // Y guardar en el cache al LEER, no solo al escribir. Si el cache solo se
   // llena cuando alguien edita, una nota que se mira pero no se toca nunca llega
   // al cache, y sin red no está. El cache tiene que reflejar lo último que se
-  // VIO, no lo último que se escribió.
+  // VIO, noto último que se escribió.
   useEffect(() => {
     if (!hayCache()) return;
     let vivo = true;
 
-    leerNota(fecha).then((guardado) => {
+    leerNota(agendaId, fecha).then((guardado) => {
       if (!vivo) return;
       if (guardado === undefined) {
         // No está en el cache: guardar lo que trajo el servidor, para que la
         // próxima vez esté aunque no haya red.
-        if (inicialDelServidor) void guardarNotaEnCache(fecha, inicialDelServidor);
+        if (inicialDelServidor) void guardarNotaEnCache(agendaId, fecha, inicialDelServidor);
         return;
       }
       if (guardado !== body) {
@@ -126,9 +119,9 @@ export function useNota(fecha: string, inicialDelServidor: string) {
     return () => {
       vivo = false;
     };
-    // Solo al cambiar de fecha: después manda el autoguardado.
+    // Solo al cambiar de agenda o fecha: después manda el autoguardado.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fecha, inicialDelServidor]);
+  }, [agendaId, fecha, inicialDelServidor]);
 
   // 2. Autoguardado: cache siempre, servidor si hay red.
   useEffect(() => {
@@ -137,11 +130,11 @@ export function useNota(fecha: string, inicialDelServidor: string) {
     setEstado(online ? "guardando" : "sin-conexion");
 
     // El cache es inmediato y no puede fallar: el usuario ya lo tiene.
-    void guardarNotaEnCache(fecha, body);
+    void guardarNotaEnCache(agendaId, fecha, body);
 
     timer.current = setTimeout(async () => {
       try {
-        const r = await guardarNota(fecha, body);
+        const r = await guardarNota(agendaId, fecha, body);
 
         // El service worker puede devolver un 200 con el shell cacheado cuando
         // no hay red, y eso NO es un guardado. La server action devuelve un flag
@@ -150,42 +143,42 @@ export function useNota(fecha: string, inicialDelServidor: string) {
           ultimoGuardado.current = body;
           setEstado("guardado");
         } else if (!navigator.onLine) {
-          await encolar({ tipo: "nota", fecha, body });
+          await encolar({ tipo: "nota", agendaId, fecha, body });
           setEstado("sin-conexion");
         } else {
           setEstado("error");
         }
       } catch {
         // La llamada ni siquiera llegó al servidor: red caída de verdad.
-        await encolar({ tipo: "nota", fecha, body });
+        await encolar({ tipo: "nota", agendaId, fecha, body });
         setEstado("sin-conexion");
       }
     }, 800);
 
     return () => clearTimeout(timer.current);
-  }, [body, fecha, online]);
+  }, [body, agendaId, fecha, online]);
 
   return { body, setBody, estado };
 }
 
 /** Igual que useNota, para la lista. */
-export function useLista(inicialDelServidor: string) {
+export function useLista(agendaId: string, inicialDelServidor: string) {
   const [body, setBody] = useState(inicialDelServidor);
   const [estado, setEstado] = useState<Estado>("guardado");
   const online = useOnline();
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const ultimoGuardado = useRef(inicialDelServidor);
 
-  // Igual que useNota: el cache se llena al leer, no solo al escribir. Si la lista
-  // se mira y no se toca, tiene que estar igual en el teléfono.
+  // Igual que useNota: el cache se llena al leer, no solo al escribir. Si la
+  // lista se mira y no se toca, tiene que estar igual en el teléfono.
   useEffect(() => {
     if (!hayCache()) return;
     let vivo = true;
 
-    leerLista().then((guardado) => {
+    leerLista(agendaId).then((guardado) => {
       if (!vivo) return;
       if (guardado === undefined) {
-        if (inicialDelServidor) void guardarListaEnCache(inicialDelServidor);
+        if (inicialDelServidor) void guardarListaEnCache(agendaId, inicialDelServidor);
         return;
       }
       if (guardado !== body) {
@@ -198,53 +191,54 @@ export function useLista(inicialDelServidor: string) {
       vivo = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inicialDelServidor]);
+  }, [agendaId, inicialDelServidor]);
 
   useEffect(() => {
     if (body === ultimoGuardado.current) return;
     clearTimeout(timer.current);
     setEstado(online ? "guardando" : "sin-conexion");
-    void guardarListaEnCache(body);
+    void guardarListaEnCache(agendaId, body);
 
     timer.current = setTimeout(async () => {
       try {
-        const r = await guardarLista(body);
+        const r = await guardarLista(agendaId, body);
         if (r.guardado) {
           ultimoGuardado.current = body;
           setEstado("guardado");
         } else if (!navigator.onLine) {
-          await encolar({ tipo: "lista", fecha: "", body });
+          await encolar({ tipo: "lista", agendaId, fecha: "", body });
           setEstado("sin-conexion");
         } else {
           setEstado("error");
         }
       } catch {
-        await encolar({ tipo: "lista", fecha: "", body });
+        await encolar({ tipo: "lista", agendaId, fecha: "", body });
         setEstado("sin-conexion");
       }
     }, 800);
 
     return () => clearTimeout(timer.current);
-  }, [body, online]);
+  }, [body, agendaId, online]);
 
   return { body, setBody, estado };
 }
 
-/** Todas las notas, para el calendario y el buscador. Del cache. */
-export function useNotasCacheadas(cuerposDelServidor: Record<string, string>) {
+/** Las notas cacheadas de una agenda, para el calendario y el buscador. */
+export function useNotasCacheadas(agendaId: string, cuerposDelServidor: Record<string, string>) {
   const [cuerpos, setCuerpos] = useState(cuerposDelServidor);
 
   useEffect(() => {
     if (!hayCache()) return;
     let vivo = true;
-    leerTodasLasNotas().then((guardado) => {
+    leerTodasLasNotas(agendaId).then((guardado) => {
       if (!vivo) return;
       setCuerpos((prev) => ({ ...guardado, ...prev }));
     });
     return () => {
       vivo = false;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agendaId]);
 
   return cuerpos;
 }

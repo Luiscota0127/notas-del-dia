@@ -54,11 +54,13 @@ export function buscarEnNotas(
 }
 
 export function Buscador({
+  agendaId,
   bodies,
   abierto,
   onCerrar,
   sufijo = "",
 }: {
+  agendaId: string;
   bodies: Record<string, string>;
   abierto: boolean;
   onCerrar: () => void;
@@ -97,12 +99,12 @@ export function Buscador({
         e.preventDefault();
         const r = resultados[sel];
         onCerrar();
-        router.push(`/${r.date}${sufijo}`);
+        router.push(`/${agendaId}/${r.date}${sufijo}`);
       }
     };
     document.addEventListener("keydown", alTeclado);
     return () => document.removeEventListener("keydown", alTeclado);
-  }, [abierto, resultados, sel, onCerrar, router, sufijo]);
+  }, [abierto, resultados, sel, onCerrar, router, sufijo, agendaId]);
 
   if (!abierto) return null;
 
@@ -146,7 +148,7 @@ export function Buscador({
                   aria-selected={i === sel}
                   onClick={() => {
                     onCerrar();
-                    router.push(`/${r.date}${sufijo}`);
+                    router.push(`/${agendaId}/${r.date}${sufijo}`);
                   }}
                   onMouseEnter={() => setSel(i)}
                   className={`w-full text-left px-4 py-2 flex gap-3 items-baseline ${

@@ -10,11 +10,18 @@
  * se cambia en este archivo y en ningún otro.
  *
  * El service worker NO cachea respuestas de Supabase. Cachear SQL sobre la red
- * es la forma más directa de mostrarle a alguien la nota de ayer cuando quería la
- * de hoy. Los datos van acá.
+ * es la forma más directa de mostrarle a alguien la nota de ayer cuando quería
+ * la de hoy. Los datos van acá.
+ *
+ * Todas las claves llevan el id de agenda adelante. Dos agendas pueden tener
+ * nota para la misma fecha, y sin el prefijo una pisaría a la otra en el
+ * teléfono sin que se note hasta que se abre la agenda equivocada.
  */
 
 const DB = "notas";
+// 1, no 2: el schema de IndexedDB no cambió, solo el FORMATO de las claves. Subir
+// la versión dispara un `onupgradeneeded` que no tiene nada que hacer, y una
+// migración a medias es la forma más directa de romperle el cache a alguien.
 const VERSION = 1;
 const STORE_NOTAS = "notas";
 const STORE_LISTA = "lista";
@@ -35,6 +42,15 @@ function abrir(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_COLA)) {
         db.createObjectStore(STORE_COLA, { keyPath: "clave" });
       }
+      // Acá NO se borran las notas que quedaron con la `fecha` pelada de cuando
+      // el cache era por persona. Se podrían, con un cursor, y la tentación es
+      // grande: quedan ahí, con datos viejos que ya no apuntan a ninguna parte.
+      //
+      // No vale la pena. Esas claves no se leen nunca —todo acceso pasa por
+      // `agenda/fecha`— y borrarlas exige iterar un cursor DENTRO de la
+      // transacción de upgrade, donde un corte a medio camino deja el store
+      // incompleto para todos los usuarios. El riesgo no compensa unos kilobytes
+      // de un cache que se regenera solo con la próxima visita con red.
     };
 
     req.onsuccess = () => resolve(req.result);
@@ -56,20 +72,25 @@ function tx<T>(
   });
 }
 
-/** ¿Hay IndexedDB? Safari en modo privado puede no tenerlo. */
 export function hayCache(): boolean {
   return typeof indexedDB !== "undefined";
 }
 
+/** `agenda/fecha`. La barra es lo que separa agenda de fecha; un uuid no la tiene. */
+const claveNota = (agendaId: string, fecha: string) => `${agendaId}/${fecha}`;
+
 // --- notas ---------------------------------------------------------------
 
 /** La nota de un día, o undefined si nunca se vio. */
-export async function leerNota(fecha: string): Promise<string | undefined> {
+export async function leerNota(
+  agendaId: string,
+  fecha: string,
+): Promise<string | undefined> {
   if (!hayCache()) return undefined;
   try {
     const db = await abrir();
     const valor = await tx<string | undefined>(db, STORE_NOTAS, "readonly", (s) =>
-      s.get(fecha),
+      s.get(claveNota(agendaId, fecha)),
     );
     db.close();
     return valor;
@@ -79,11 +100,15 @@ export async function leerNota(fecha: string): Promise<string | undefined> {
   }
 }
 
-export async function guardarNotaEnCache(fecha: string, body: string): Promise<void> {
+export async function guardarNotaEnCache(
+  agendaId: string,
+  fecha: string,
+  body: string,
+): Promise<void> {
   if (!hayCache()) return;
   try {
     const db = await abrir();
-    await tx(db, STORE_NOTAS, "readwrite", (s) => s.put(body, fecha));
+    await tx(db, STORE_NOTAS, "readwrite", (s) => s.put(body, claveNota(agendaId, fecha)));
     db.close();
   } catch {
     // Silencio: si el cache falla, el autoguardado a Postgres sigue siendo la
@@ -91,8 +116,8 @@ export async function guardarNotaEnCache(fecha: string, body: string): Promise<v
   }
 }
 
-/** Todas las notas cacheadas, como Record<fecha, body>. */
-export async function leerTodasLasNotas(): Promise<Record<string, string>> {
+/** Las notas de UNA agenda, como Record<fecha, body>. */
+export async function leerTodasLasNotas(agendaId: string): Promise<Record<string, string>> {
   if (!hayCache()) return {};
   try {
     const db = await abrir();
@@ -100,9 +125,12 @@ export async function leerTodasLasNotas(): Promise<Record<string, string>> {
     const valores = await tx<string[]>(db, STORE_NOTAS, "readonly", (s) => s.getAll());
     db.close();
 
+    const prefijo = `${agendaId}/`;
     const out: Record<string, string> = {};
     claves.forEach((k, i) => {
-      out[String(k)] = valores[i] ?? "";
+      const clave = String(k);
+      if (!clave.startsWith(prefijo)) return;
+      out[clave.slice(prefijo.length)] = valores[i] ?? "";
     });
     return out;
   } catch {
@@ -112,12 +140,12 @@ export async function leerTodasLasNotas(): Promise<Record<string, string>> {
 
 // --- lista de mandado -----------------------------------------------------
 
-export async function leerLista(): Promise<string | undefined> {
+export async function leerLista(agendaId: string): Promise<string | undefined> {
   if (!hayCache()) return undefined;
   try {
     const db = await abrir();
     const valor = await tx<string | undefined>(db, STORE_LISTA, "readonly", (s) =>
-      s.get("body"),
+      s.get(agendaId),
     );
     db.close();
     return valor;
@@ -126,11 +154,11 @@ export async function leerLista(): Promise<string | undefined> {
   }
 }
 
-export async function guardarListaEnCache(body: string): Promise<void> {
+export async function guardarListaEnCache(agendaId: string, body: string): Promise<void> {
   if (!hayCache()) return;
   try {
     const db = await abrir();
-    await tx(db, STORE_LISTA, "readwrite", (s) => s.put(body, "body"));
+    await tx(db, STORE_LISTA, "readwrite", (s) => s.put(body, agendaId));
     db.close();
   } catch {
     // idem
@@ -144,13 +172,30 @@ export type Entrada = {
   tipo: "nota" | "lista";
   /** La fecha, para las notas. Vacío para la lista. */
   fecha: string;
+  /** La agenda a la que pertenece. Sin esto, al subir la cola se mezclarían. */
+  agendaId: string;
   body: string;
   /** Para ordenar y descartar lo viejo. */
   cuando: number;
 };
 
+/**
+ * Una sola entrada por nota y agenda.
+ *
+ * Con `agendaId` adelante porque "nota:2026-09-01" no dice en qué agenda: la
+ * misma fecha en dos agendas son dos notas distintas y no se pisan entre sí.
+ */
 function claveDe(e: Entrada): string {
-  return e.tipo === "nota" ? `nota:${e.fecha}` : "lista";
+  return e.tipo === "nota" ? `nota:${e.agendaId}:${e.fecha}` : `lista:${e.agendaId}`;
+}
+
+/** La clave de una entrada, para poder sacarla de la cola. */
+export function claveEntrada(
+  tipo: Entrada["tipo"],
+  agendaId: string,
+  fecha: string,
+): string {
+  return tipo === "nota" ? `nota:${agendaId}:${fecha}` : `lista:${agendaId}`;
 }
 
 /**
