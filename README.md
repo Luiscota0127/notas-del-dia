@@ -32,7 +32,7 @@ Vitest
 Con `NEXT_PUBLIC_DEMO_NOTA` en `.env.local` (ya viene ahí), la ruta:
 
 ```
-http://localhost:3000/2026-09-01?demo=1
+http://localhost:3005/2026-09-01?demo=1
 ```
 
 renderiza la nota real de la referencia. Es la forma de revisar el editor sin
@@ -42,7 +42,7 @@ Supabase configurado. En producción ese atajo no existe.
 
 ```bash
 npm install
-npm run dev        # http://localhost:3000
+npm run dev        # http://localhost:3005
 npm run build
 npm run lint
 npm test           # 90 tests
