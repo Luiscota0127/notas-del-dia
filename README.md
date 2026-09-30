@@ -99,9 +99,15 @@ autocorrector, el diccionario, el undo nativo y el IME del sistema funcionan.
 **Trade-off asumido:** no se puede seleccionar una línea arrastrando; hay que
 clicar el checkbox. Ver `PLAN.md` 1.1.
 
-## Notas de implementación
+**Rutas nuevas: `npm run build` dos veces.** Next escribe `.next/types/routes.d.ts`
+*después* del typecheck, así que un build limpio con una ruta que acabás de crear
+falla con `Type '"/x"' does not satisfy the constraint 'AppRoutes'`. La segunda
+pasada pasa. No es un error de código: si el archivo generado sí lista la ruta,
+ya está. Borrar `.next` lo reproduce siempre.
 
-Estas tres cosas costaron tiempo y van a volver aljear si alguien las toca:
+**Notas de implementación**
+
+Estas cosas costaron tiempo y van a volver a estorbar si alguien las toca:
 
 **`--linea: 27.2px`, absoluto, nunca `em` ni `rem`.** Con `1.6em` cada elemento lo
 resuelve contra SU font-size: en `.mes` (20px) daba 32px, y como el error se

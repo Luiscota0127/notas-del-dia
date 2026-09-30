@@ -231,6 +231,22 @@ export function ListaEditor({
     };
   }, [body]);
 
+  // --- agregar al final sin escribir -------------------------------------
+  const agregarAlFinal = useCallback(() => {
+    const base = body.endsWith("\n") || body === "" ? body : body + "\n";
+    const nuevo = base + "☐ ";
+    setBody(nuevo);
+    escribiendoDesde.current = true;
+
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(nuevo.length, nuevo.length);
+      el.scrollIntoView({ block: "end" });
+    });
+  }, [body]);
+
   const tasks = parseNote(body);
   const pendientes = tasks.filter((t) => t.kind === "check" && !t.done).length;
 
@@ -257,6 +273,14 @@ export function ListaEditor({
         </div>
       </header>
 
+      {/* El botón va FUERA de .editor: adentro, el textarea es absoluto y lo
+          cubre. */}
+      <div className="mb-3">
+        <button type="button" onClick={agregarAlFinal} className="btn-ghost text-sm">
+          + Agregar
+        </button>
+      </div>
+
       <div className="editor">
         <label htmlFor="lista" className="sr-only">
           La lista de mandado
@@ -280,28 +304,6 @@ export function ListaEditor({
         <div className="capa-scroll" ref={capaRef}>
           <DisplayLayer tasks={tasks} onToggle={toggle} />
         </div>
-      </div>
-
-      <div className="mt-4">
-        <button
-          type="button"
-          onClick={() => {
-            const base = body.endsWith("\n") || body === "" ? body : body + "\n";
-            const nuevo = base + "☐ ";
-            setBody(nuevo);
-            escribiendoDesde.current = true;
-            requestAnimationFrame(() => {
-              const el = inputRef.current;
-              if (!el) return;
-              el.focus();
-              el.setSelectionRange(nuevo.length, nuevo.length);
-              el.scrollIntoView({ block: "end" });
-            });
-          }}
-          className="btn-ghost text-sm"
-        >
-          + Agregar
-        </button>
       </div>
     </div>
   );

@@ -46,6 +46,13 @@ export async function GET() {
 
   const notas = await supabase.from("notes").select("id").limit(1);
   const profiles = await supabase.from("profiles").select("id").limit(1);
+  const lista = await supabase.from("lista").select("id, body").limit(1);
+
+  // La lista se lee sin sesión y con RLS: si la policy exige un profile y no hay
+  // sesión, devuelve [] con 200. Un 404 significa que la tabla no existe.
+  const listaAnon = await fetch(`${url}/rest/v1/lista?select=body`, {
+    headers: { apikey: key, Authorization: `Bearer ${key}` },
+  });
 
   return NextResponse.json({
     envOk: true,
@@ -56,9 +63,13 @@ export async function GET() {
     selectAnonStatus: anon.status,
     notasExiste: !notas.error,
     profilesExiste: !profiles.error,
+    listaExiste: !lista.error,
+    listaStatus: listaAnon.status,
+    listaAnonBody: (await listaAnon.text()).slice(0, 200),
     errores: {
       notas: notas.error?.message ?? null,
       profiles: profiles.error?.message ?? null,
+      lista: lista.error?.message ?? null,
     },
   });
 }

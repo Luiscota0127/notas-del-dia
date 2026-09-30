@@ -8,7 +8,9 @@
     "start": "next start -p 3005",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "iconos": "node scripts/gen-iconos.mjs",
+    "iconos:verificar": "node scripts/verificar-iconos.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",

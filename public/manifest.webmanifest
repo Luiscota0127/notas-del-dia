@@ -1,5 +1,6 @@
 {
   "name": "Notas del Día",
+  "short_name": "Notas",
   "description": "La libreta de pendientes de la casa",
   "start_url": "/hoy",
   "scope": "/",
@@ -8,6 +9,8 @@
   "background_color": "#111111",
   "theme_color": "#111111",
   "lang": "es",
+  "dir": "ltr",
+  "categories": ["productivity", "lifestyle"],
   "icons": [
     {
       "src": "/icon-192.png",
@@ -22,7 +25,7 @@
       "purpose": "any"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
