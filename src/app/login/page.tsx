@@ -9,7 +9,7 @@ export const metadata = { title: "Entrar — Notas del Día" };
 
 export default async function LoginPage() {
   const user = await getUser();
-  if (user) redirect("/hoy");
+  if (user) redirect("/agendas");
 
   return (
     <main className="min-h-dvh flex items-center justify-center p-6">
@@ -19,7 +19,7 @@ export default async function LoginPage() {
 
         {/* El servidor no puede ver el token del magic link todavía. Este
             componente lo canjea del lado del cliente y, si hay sesión, manda a
-            /hoy. Sin esto, el link deja al usuario parado acá. */}
+            /agendas. Sin esto, el link deja al usuario parado acá. */}
         <ContinuarSesion />
 
         {hasSupabaseEnv() ? <LoginForm /> : <SinConfigurar />}

@@ -195,7 +195,7 @@ async function desdeCache(request, url, cache) {
  */
 self.addEventListener("notificationclick", (evento) => {
   evento.notification.close();
-  const url = evento.notification.data?.url ?? "/hoy";
+  const url = evento.notification.data?.url ?? "/";
   evento.waitUntil(
     (async () => {
       const clientes = await self.clients.matchAll({ type: "window" });

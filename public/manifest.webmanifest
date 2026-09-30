@@ -2,7 +2,7 @@
   "name": "Notas del Día",
   "short_name": "Notas",
   "description": "La libreta de pendientes de la casa",
-  "start_url": "/hoy",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

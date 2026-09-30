@@ -3,6 +3,8 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+import { existeRutaEstatica } from "./rutas";
+
 /**
  * El manifest declara íconos que tienen que existir de verdad. Si el manifest
  * apunta a un PNG que no está, iOS instala la app sin icono y no avisa: el
@@ -22,8 +24,31 @@ const manifest = JSON.parse(
 describe("el manifest", () => {
   it("es JSON válido", () => {
     expect(manifest.name).toBeTruthy();
-    expect(manifest.start_url).toBe("/hoy");
     expect(manifest.display).toBe("standalone");
+  });
+
+  /**
+   * El que faltaba.
+   *
+   * Antes el test comparaba `start_url` contra el literal "/hoy", así que
+   * siguió en verde semanas después de que esa ruta se borrara: verificaba una
+   * cadena, no que la ruta existiera. Agregar el ícono al inicio del iPhone
+   * abría un 404 y nada lo agarró.
+   *
+   * `existeRutaEstatica` y no `existeRuta` a propósito. `/lo-que-sea` cae
+   * dentro de `/[agenda]` y técnicamente "existe", pero devuelve 404 en runtime
+   * porque no hay ninguna agenda con ese id. Un start_url tiene que funcionar
+   * sin que nadie haya escrito nada antes, así que no puede depender de un
+   * parámetro.
+   */
+  it("start_url apunta a una ruta que existe y no depende de un parámetro", () => {
+    expect(existeRutaEstatica(manifest.start_url)).toBe(true);
+  });
+
+  it("scope cubre start_url", () => {
+    // Si start_url quedara fuera del scope, al abrir la PWA el navegador
+    // muestra una barra de URL y no se siente como app.
+    expect(manifest.start_url.startsWith(manifest.scope)).toBe(true);
   });
 
   it("los colores coinciden con los tokens de globals.css", () => {
