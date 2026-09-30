@@ -1,31 +1,51 @@
 # Backlog
 
-## 1. El precache guarda la pantalla de login, no la app
+## 1. El precache guarda la pantalla de login — CERRADO
 
-**Estado:** verificado en producción, sin arreglar.
+Arreglado en `dfc8d52` y verificado en producción: el precache ya no tiene `/`,
+`/hoy`, `/mandado` ni la clave compartida `/shell`. Solo manifest, íconos y los
+chunks con hash que se piden en runtime.
 
-`cache.addAll(["/", "/hoy", ...])` sigue los redirects. Con la sesión cerrada,
-`/` y `/hoy` responden **307 a `/login`**, así que lo que queda guardado bajo esas
-claves es el HTML del login. Medido en `notas-del-dia.vercel.app`:
+Dos cosas que quedan de esto, y que son riesgos reales:
 
-```
-"/":     { status: 200, redirected: true, esLogin: true, bytes: 9206 }
-"/hoy":  { status: 200, redirected: true, esLogin: true, bytes: 9206 }
-```
+**El HTML por ruta se cachea con datos adentro.** `redPrimero` guarda cada
+respuesta de navegación bajo su pathname, y esa respuesta lleva la nota
+renderizada con la sesión de quien la pidió. En un teléfono compartido, la
+segunda persona ve la nota de la primera hasta que IndexedDB la reemplaza.
 
-9206 bytes idénticos en las dos: es la misma página, la del login.
+No hay logout en el código donde colgar un `caches.delete()`. Si algún día se
+agrega, hay que borrar el cache ahí: es el punto donde el dato ajeno se va.
 
-Peor: **`addAll` solo corre en el `install`**, o sea una vez. La primera visita
-de cualquiera es deslogueada, así que el shell cacheado es el login aunque después
-la persona entre con sesión. Nunca se actualiza.
+**Sin sesión no hay shell universal.** `desdeCache` no puede servir "una página
+de app" cuando lo que se necesita son los datos de una nota concreta. Por eso,
+sin red y sin visita previa a esa ruta, la respuesta es el mensaje de Sin
+conexión y no una pantalla rota. Con red y con visita previa, funciona.
 
-Por qué importa: sin red, `/` y `/hoy` devuelven el login. La app "abre" pero no
-muestra notas.
+## 9. Compartir la agenda entre los dos
 
-Arreglo probable: `/` y `/hoy` no deberían estar en el precache. El shell son
-archivos sin auth — los íconos, el manifest, los chunks. Las rutas que dependen
-de la sesión no se precachean: se resuelven en runtime contra la red, y sin red
-lo que hay es IndexedDB (`src/lib/cache.ts`), que es justamente el diseño de F5.3.
+**Estado:** decisión de diseño, sin empezar.
+
+Hoy las notas **no** son compartidas: `notes` tiene `unique (user_id, date)` y la
+policy es `user_id = auth.uid()`. Cada persona tiene su libreta, como en Notion.
+Solo `lista` es compartida, y tiene su propia tabla justamente por eso (ver
+`0004_lista.sql`).
+
+El problema de hacer la nota compartida: dos personas escriben el mismo día, y
+la última que guarda pisa a la otra. Con `lista` no pasa porque es un documento
+continuo donde los dos agregan abajo. Con una nota por día, "agregar abajo" no
+significa nada porque la nota es de un día puntual.
+
+Lo que resuelve esto sin romper el modelo: **dejar la nota como es, y agregar la
+lista al día**. Es decir, `/mandado` pasa a embeberse en la nota del día, o la
+nota del día muestra la lista debajo. Un solo documento, los dos escriben, y la
+separación visual la hace el parser —que ya distingue `☐`, `•` y texto libre.
+
+Alternativa más grande: una tabla `agenda` compartida como `lista`, donde cada
+día es una fila. Más limpio de modelar, pero es otro documento con otro editor, y
+la app ya tiene dos.
+
+**Falta decidir cuál.** No lo empiezo sin que lo elijas, porque las dos cambian el
+schema y el modelo mental.
 
 ## 2. `/mandado` sin red no abre
 
