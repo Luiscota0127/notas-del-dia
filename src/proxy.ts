@@ -15,11 +15,12 @@ import { createClient } from "@/lib/db/server";
  * navegación.
  */
 export async function proxy(request: NextRequest) {
+  // Modo demo: ?demo=1 renderiza datos de ejemplo sin backend. El proxy no debe
+  // interferir, o cada navegación manda a /login.
+  //
   // Sin env vars no hay Supabase que consultar. createServerClient tira con
   // undefined, y eso sería un 500 en cada ruta. El login muestra el mensaje de
   // "sin configurar"; el resto de la app todavía no tiene nada que proteger.
-  // Modo demo: ?demo=1 renderiza datos de ejemplo sin backend. El proxy no debe
-  // interferir, o cada navegación manda a /login.
   if (request.nextUrl.searchParams.get("demo") === "1") {
     return NextResponse.next({ request });
   }

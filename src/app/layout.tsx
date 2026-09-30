@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 
 import { ThemeScript } from "./ajustes/ToggleTema";
+import { BandaConexion } from "@/components/BandaConexion";
+import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -43,6 +45,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         }}
       >
         {children}
+        {/* Sin esto no hay PWA instalable en iOS. No renderiza nada. */}
+        <ServiceWorkerRegister />
+        {/* Solo aparece sin red. Vacía la cola cuando vuelve. */}
+        <BandaConexion />
       </body>
     </html>
   );

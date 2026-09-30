@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
-import { guardarNota } from "@/app/acciones";
 import { ContadorDia } from "@/components/ContadorDia";
+import { useNota } from "@/lib/hooks/useCache";
 import { emptyNoteTemplate } from "@/lib/format";
 import { parseNote, toggleCheck } from "@/lib/parse";
 
@@ -31,8 +31,6 @@ import "./layers.css";
  * en el checkbox. Ver PLAN.md 1.1.
  */
 
-type Estado = "guardado" | "guardando" | "error";
-
 export function NoteEditor({
   date,
   initialBody,
@@ -44,42 +42,17 @@ export function NoteEditor({
   me: { id: string; name: string };
   partner: { id: string; name: string } | null;
 }) {
-  const [body, setBody] = useState(initialBody || emptyNoteTemplate(date));
-  const [estado, setEstado] = useState<Estado>("guardado");
-  // ponytail: useTransition solo por el flag `pending`, que no se usa. El
-  // indicador de "Guardando…" ya lo lleva `estado`.
-  const [, startTransition] = useTransition();
+  // El estado y el autoguardado viven en useNota: cache primero, servidor si hay
+  // red, cola si no. El editor solo manipula el string.
+  const { body, setBody, estado } = useNota(date, initialBody || emptyNoteTemplate(date));
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const capaRef = useRef<HTMLDivElement>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const ultimoGuardado = useRef(body);
 
   // Undo de las acciones programáticas (toggle de checkbox). La escritura va por
   // el undo nativo de la textarea, que es el 95% del uso.
   const pilaProgramatica = useRef<{ before: string; after: string }[]>([]);
   const escribiendoDesde = useRef(false);
-
-  // --- autoguardado ------------------------------------------------------
-  useEffect(() => {
-    if (body === ultimoGuardado.current) return;
-    clearTimeout(timer.current);
-    setEstado("guardando");
-
-    timer.current = setTimeout(() => {
-      startTransition(async () => {
-        try {
-          await guardarNota(date, body);
-          ultimoGuardado.current = body;
-          setEstado("guardado");
-        } catch {
-          setEstado("error");
-        }
-      });
-    }, 800);
-
-    return () => clearTimeout(timer.current);
-  }, [body, date]);
 
   // --- sincronización de scroll ------------------------------------------
   // La textarea scrollea; la capa de display la sigue. Sin esto el texto se ve
@@ -212,7 +185,7 @@ export function NoteEditor({
         );
       });
     },
-    [body],
+    [body, setBody],
   );
 
   // --- Ctrl+Z / Ctrl+Shift+Z --------------------------------------------
@@ -238,7 +211,7 @@ export function NoteEditor({
       // la línea es lo que hace que Ctrl+Z "salte". Se deja donde estaba.
       requestAnimationFrame(() => inputRef.current?.focus());
     },
-    [],
+    [setBody],
   );
 
   useEffect(() => {
@@ -305,7 +278,7 @@ export function NoteEditor({
         el.setSelectionRange(caret, caret);
       });
     },
-    [body],
+    [body, setBody],
   );
 
   useEffect(() => {
@@ -345,7 +318,7 @@ export function NoteEditor({
         el.scrollIntoView({ block: "end" });
       });
     },
-    [body],
+    [body, setBody],
   );
 
   const agregarTarea = useCallback(() => agregarAlFinal("☐ "), [agregarAlFinal]);
@@ -370,6 +343,7 @@ export function NoteEditor({
           <p aria-live="polite" className="text-dim text-sm">
             {estado === "guardando" && "Guardando…"}
             {estado === "guardado" && "Guardado ✓"}
+            {estado === "sin-conexion" && "En el teléfono"}
             {estado === "error" && (
               <span className="text-accent">No se pudo guardar. Reintentá.</span>
             )}

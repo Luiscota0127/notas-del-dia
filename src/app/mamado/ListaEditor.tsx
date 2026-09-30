@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
-import { guardarLista } from "@/app/acciones";
+import { useLista, useOnline, useVaciarCola } from "@/lib/hooks/useCache";
 import { parseNote, toggleCheck } from "@/lib/parse";
 
 import { DisplayLayer } from "@/components/editor/DisplayLayer";
@@ -10,11 +10,10 @@ import "@/components/editor/layers.css";
 
 /**
  * El editor de la lista de mandado. Es el mismo de dos capas de la nota, sin
- * fecha: no hay encabezado de día, no hay auto-guardado por día, y el documento
- * es compartido.
+ * fecha: no hay encabezado de día, y el documento es compartido.
  *
- * Reusa DisplayLayer y el mismo parse, así que el formato de la lista es
- * idéntico al de las notas: `☐ pan`, `☑ leche`, `• algo`.
+ * El estado y el autoguardado vienen de useLista: cache primero, servidor si hay
+ * red, cola si no.
  */
 export function ListaEditor({
   initialBody,
@@ -23,56 +22,21 @@ export function ListaEditor({
   initialBody: string;
   partner: { name: string } | null;
 }) {
-  const [body, setBody] = useState(initialBody);
-  const [estado, setEstado] = useState<"guardado" | "guardando" | "error">("guardado");
-  const [, startTransition] = useTransition();
+  const { body, setBody, estado } = useLista(initialBody);
+  const online = useOnline();
+  useVaciarCola(online);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const capaRef = useRef<HTMLDivElement>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const ultimoGuardado = useRef(body);
   const pilaProgramatica = useRef<{ before: string; after: string }[]>([]);
   const escribiendoDesde = useRef(false);
 
-  // --- autoguardado ------------------------------------------------------
-  useEffect(() => {
-    if (body === ultimoGuardado.current) return;
-    clearTimeout(timer.current);
-    setEstado("guardando");
-
-    timer.current = setTimeout(() => {
-      startTransition(async () => {
-        try {
-          await guardarLista(body);
-          ultimoGuardado.current = body;
-          setEstado("guardado");
-        } catch {
-          setEstado("error");
-        }
-      });
-    }, 800);
-
-    return () => clearTimeout(timer.current);
-  }, [body]);
-
   // --- sincronización de scroll ------------------------------------------
-  useEffect(() => {
+  const sincScroll = useCallback(() => {
     const input = inputRef.current;
     const capa = capaRef.current;
     if (!input || !capa) return;
-
-    let pendiente = false;
-    const alScroll = () => {
-      if (pendiente) return;
-      pendiente = true;
-      requestAnimationFrame(() => {
-        capa.scrollTop = input.scrollTop;
-        pendiente = false;
-      });
-    };
-
-    input.addEventListener("scroll", alScroll, { passive: true });
-    return () => input.removeEventListener("scroll", alScroll);
+    capa.scrollTop = input.scrollTop;
   }, []);
 
   // --- teclado en iOS ----------------------------------------------------
@@ -121,7 +85,7 @@ export function ListaEditor({
         el.setSelectionRange(Math.max(0, sel + delta), Math.max(0, selFin + delta));
       });
     },
-    [body],
+    [body, setBody],
   );
 
   // --- Enter al final de una tarea crea la siguiente ---------------------
@@ -162,7 +126,7 @@ export function ListaEditor({
         el.setSelectionRange(caret, caret);
       });
     },
-    [body],
+    [body, setBody],
   );
 
   useEffect(() => {
@@ -194,22 +158,7 @@ export function ListaEditor({
 
     input.addEventListener("keydown", alTeclado);
     return () => input.removeEventListener("keydown", alTeclado);
-  }, []);
-
-  // --- alto --------------------------------------------------------------
-  const ajustarAlto = useCallback(() => {
-    const input = inputRef.current;
-    if (!input) return;
-    const piso = window.innerHeight * 0.5;
-    input.style.height = "auto";
-    input.style.height = `${Math.max(input.scrollHeight, piso)}px`;
-  }, []);
-
-  useEffect(() => {
-    ajustarAlto();
-    window.addEventListener("resize", ajustarAlto);
-    return () => window.removeEventListener("resize", ajustarAlto);
-  }, [ajustarAlto, body]);
+  }, [setBody]);
 
   // --- ancho del prefijo -------------------------------------------------
   useEffect(() => {
@@ -224,19 +173,15 @@ export function ListaEditor({
     };
     medir();
     const t = setTimeout(medir, 120);
-    window.addEventListener("resize", medir);
-    return () => {
-      clearTimeout(t);
-      window.removeEventListener("resize", medir);
-    };
+    return () => clearTimeout(t);
   }, [body]);
 
   // --- agregar al final sin escribir -------------------------------------
   const agregarAlFinal = useCallback(() => {
     const base = body.endsWith("\n") || body === "" ? body : body + "\n";
     const nuevo = base + "☐ ";
-    setBody(nuevo);
     escribiendoDesde.current = true;
+    setBody(nuevo);
 
     requestAnimationFrame(() => {
       const el = inputRef.current;
@@ -245,7 +190,7 @@ export function ListaEditor({
       el.setSelectionRange(nuevo.length, nuevo.length);
       el.scrollIntoView({ block: "end" });
     });
-  }, [body]);
+  }, [body, setBody]);
 
   const tasks = parseNote(body);
   const pendientes = tasks.filter((t) => t.kind === "check" && !t.done).length;
@@ -266,6 +211,7 @@ export function ListaEditor({
           <p aria-live="polite" className="text-dim text-sm">
             {estado === "guardando" && "Guardando…"}
             {estado === "guardado" && "Guardado ✓"}
+            {estado === "sin-conexion" && "En el teléfono"}
             {estado === "error" && (
               <span className="text-accent">No se pudo guardar. Reintentá.</span>
             )}
@@ -273,8 +219,6 @@ export function ListaEditor({
         </div>
       </header>
 
-      {/* El botón va FUERA de .editor: adentro, el textarea es absoluto y lo
-          cubre. */}
       <div className="mb-3">
         <button type="button" onClick={agregarAlFinal} className="btn-ghost text-sm">
           + Agregar
@@ -294,6 +238,7 @@ export function ListaEditor({
             escribiendoDesde.current = true;
             setBody(e.target.value);
           }}
+          onScroll={sincScroll}
           spellCheck
           autoCapitalize="sentences"
           autoCorrect="on"
