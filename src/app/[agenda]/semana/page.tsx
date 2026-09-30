@@ -32,7 +32,7 @@ export default async function SemanaPage({
     return <Semana agendaId={AGENDA_DEMO} dias={dias} lunes={lunes} />;
   }
 
-  const user = await requireUser();
+  await requireUser();
   const agenda = await getAgenda(agendaId);
   if (!agenda) notFound();
 

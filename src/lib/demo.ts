@@ -1,4 +1,13 @@
 /**
+ * El id que usan las páginas de demo. No es un uuid real: no existe en la base.
+ *
+ * Vive acá y no junto a las pages porque Next no deja exportar constantes desde
+ * un `page.tsx`, y porque el hook de realtime necesita reconocerlo para no
+ * suscribirse a una agenda que no existe.
+ */
+export const AGENDA_DEMO = "00000000-0000-0000-0000-000000000000";
+
+/**
  * La nota de la referencia, en un solo lugar.
  *
  * La usan el modo demo de /[date] y el de /semana, y los tests. Antes estaba

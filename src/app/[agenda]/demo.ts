@@ -1,10 +1,9 @@
 /**
- * El id que usan las páginas de demo. No es un uuid real: no existe en la base.
+ * El nombre que muestra el demo de la agenda.
  *
- * Va en un archivo aparte porque Next no permite exportar nada de un `page.tsx`
- * que no sea el default o el metadata — un export suelto ahí es un error de
- * build, no un warning.
+ * `AGENDA_DEMO` no vive acá sino en `src/lib/demo.ts`, porque el hook de realtime
+ * también necesita reconocerla para no suscribirse a una agenda que no existe.
  */
-export const AGENDA_DEMO = "00000000-0000-0000-0000-000000000000";
+export { AGENDA_DEMO } from "@/lib/demo";
 
 export const NOMBRE_AGENDA_DEMO = "Casa";

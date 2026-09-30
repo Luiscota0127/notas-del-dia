@@ -13,11 +13,11 @@ import { aceptar, crearAgenda } from "./acciones";
  * resolverlo es una pantalla donde se ven todas y se elige.
  */
 export default async function AgendasPage() {
-  const user = await requireUser();
+  await requireUser();
 
   const [agendas, invitaciones] = await Promise.all([
-    getAgendas(user.id),
-    getInvitacionesPara(user.id),
+    getAgendas(),
+    getInvitacionesPara(),
   ]);
 
   // Una invitación a una agenda de la que ya sos miembro es basura de un intento

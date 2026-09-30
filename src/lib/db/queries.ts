@@ -53,7 +53,7 @@ export async function getProfile(userId: string): Promise<Profile> {
  * La lista es la pantalla de inicio de la app, así que se ordena por cuándo se
  * unió a cada una: la primera es la de siempre y no tiene que cambiar nunca.
  */
-export async function getAgendas(userId: string): Promise<Array<Agenda & { miembros: Profile[] }>> {
+export async function getAgendas(): Promise<Array<Agenda & { miembros: Profile[] }>> {
   const supabase = await createClient();
 
   // Las agendas: la RLS ya filtra por membresía, así que no hace falta filtrar acá.
@@ -112,8 +112,8 @@ export async function getMiembros(agendaId: string): Promise<Profile[]> {
  * de quien está escribiendo. La primera es estable y es la que uno ya tiene
  * abierta casi siempre.
  */
-export async function getAgendaPorDefecto(userId: string): Promise<Agenda | null> {
-  const agendas = await getAgendas(userId);
+export async function getAgendaPorDefecto(): Promise<Agenda | null> {
+  const agendas = await getAgendas();
   return agendas[0] ?? null;
 }
 
@@ -170,7 +170,7 @@ export async function invitar(agendaId: string, userId: string, email: string) {
  * Degradar a "no tenés invitaciones" es lo correcto acá. Una invitación perdida
  * se vuelve a mandar; una app que no abre, no.
  */
-export async function getInvitacionesPara(userId: string): Promise<
+export async function getInvitacionesPara(): Promise<
   Array<Invitacion & { agenda: Agenda | null }>
 > {
   const supabase = await createClient();

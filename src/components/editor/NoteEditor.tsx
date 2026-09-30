@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import { ContadorDia } from "@/components/ContadorDia";
+import { AvisoCambioAjeno } from "@/components/AvisoCambioAjeno";
 import { useNota } from "@/lib/hooks/useCache";
 import { emptyNoteTemplate } from "@/lib/format";
 import { parseNote, toggleCheck } from "@/lib/parse";
@@ -46,7 +47,7 @@ export function NoteEditor({
 }) {
   // El estado y el autoguardado viven en useNota: cache primero, servidor si hay
   // red, cola si no. El editor solo manipula el string.
-  const { body, setBody, estado } = useNota(
+  const { body, setBody, estado, ajeno, tomarAjeno, descartarAjeno } = useNota(
     agendaId,
     date,
     initialBody || emptyNoteTemplate(date),
@@ -356,6 +357,10 @@ export function NoteEditor({
           </p>
         </div>
       </header>
+
+      {ajeno !== null && (
+        <AvisoCambioAjeno onTomar={tomarAjeno} onDescartar={descartarAjeno} />
+      )}
 
       <div className="editor">
         <label htmlFor="nota" className="sr-only">

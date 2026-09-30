@@ -15,6 +15,7 @@ import {
   sacarDeLaCola,
 } from "@/lib/cache";
 import { guardarLista, guardarNota } from "@/app/acciones";
+import { useCambiosEnVivo } from "./useRealtime";
 
 /**
  * `navigator.onLine` no es un estado de React: es del sistema. useSyncExternalStore
@@ -92,6 +93,53 @@ export function useNota(agendaId: string, fecha: string, inicialDelServidor: str
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const ultimoGuardado = useRef(inicialDelServidor);
 
+  // El body en vivo, para que el callback de realtime sepa si hay algo sin
+  // guardar sin tener que depender del closure del render.
+  const bodyRef = useRef(body);
+  useEffect(() => {
+    bodyRef.current = body;
+  }, [body]);
+
+  /** Body remoto que llegó mientras esta persona tenía cambios sin guardar. */
+  const [ajeno, setAjeno] = useState<string | null>(null);
+
+  useCambiosEnVivo({
+    tabla: "notes",
+    agendaId,
+    fecha,
+    onCambio: (remoto) => {
+      const actual = bodyRef.current;
+      // Es nuestro: el eco de nuestro propio guardado volviendo por realtime.
+      if (remoto === actual) return;
+
+      // Hay algo sin guardar de este lado. NO se pisa lo que se está escribiendo:
+      // se guarda y se avisa. Pisar acá perdería la línea del otro sin dejar
+      // rastro, que es la peor de las cuatro opciones disponibles.
+      if (actual !== ultimoGuardado.current) {
+        setAjeno(remoto);
+        return;
+      }
+
+      // Nada pendiente: se adopta lo suyo. Es el caso normal —uno escribe y el
+      // otro mira— y no necesita ninguna acción de nadie.
+      ultimoGuardado.current = remoto;
+      bodyRef.current = remoto;
+      setBody(remoto);
+    },
+  });
+
+  /** Cargar la versión del otro, descartando lo que había sin guardar. */
+  const tomarAjeno = useCallback(() => {
+    if (ajeno === null) return;
+    ultimoGuardado.current = ajeno;
+    bodyRef.current = ajeno;
+    setBody(ajeno);
+    setAjeno(null);
+  }, [ajeno]);
+
+  /** Seguir con lo propio y descartar lo del otro. */
+  const descartarAjeno = useCallback(() => setAjeno(null), []);
+
   // 1. Cache primero: sin red, esto es lo que se ve.
   //
   // Y guardar en el cache al LEER, no solo al escribir. Si el cache solo se
@@ -158,7 +206,7 @@ export function useNota(agendaId: string, fecha: string, inicialDelServidor: str
     return () => clearTimeout(timer.current);
   }, [body, agendaId, fecha, online]);
 
-  return { body, setBody, estado };
+  return { body, setBody, estado, ajeno, tomarAjeno, descartarAjeno };
 }
 
 /** Igual que useNota, para la lista. */
@@ -168,6 +216,44 @@ export function useLista(agendaId: string, inicialDelServidor: string) {
   const online = useOnline();
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const ultimoGuardado = useRef(inicialDelServidor);
+
+  const bodyRef = useRef(body);
+  useEffect(() => {
+    bodyRef.current = body;
+  }, [body]);
+
+  const [ajeno, setAjeno] = useState<string | null>(null);
+
+  // La lista es el peor caso de colisión de la app: los dos agregan cosas al
+  // mismo documento, seguido, todo el día. Sin realtime, el que agrega el
+  // segundo pisa al primero sin enterarse.
+  useCambiosEnVivo({
+    tabla: "lista",
+    agendaId,
+    onCambio: (remoto) => {
+      const actual = bodyRef.current;
+      if (remoto === actual) return;
+
+      if (actual !== ultimoGuardado.current) {
+        setAjeno(remoto);
+        return;
+      }
+
+      ultimoGuardado.current = remoto;
+      bodyRef.current = remoto;
+      setBody(remoto);
+    },
+  });
+
+  const tomarAjeno = useCallback(() => {
+    if (ajeno === null) return;
+    ultimoGuardado.current = ajeno;
+    bodyRef.current = ajeno;
+    setBody(ajeno);
+    setAjeno(null);
+  }, [ajeno]);
+
+  const descartarAjeno = useCallback(() => setAjeno(null), []);
 
   // Igual que useNota: el cache se llena al leer, no solo al escribir. Si la
   // lista se mira y no se toca, tiene que estar igual en el teléfono.
@@ -220,7 +306,7 @@ export function useLista(agendaId: string, inicialDelServidor: string) {
     return () => clearTimeout(timer.current);
   }, [body, agendaId, online]);
 
-  return { body, setBody, estado };
+  return { body, setBody, estado, ajeno, tomarAjeno, descartarAjeno };
 }
 
 /** Las notas cacheadas de una agenda, para el calendario y el buscador. */
@@ -237,7 +323,6 @@ export function useNotasCacheadas(agendaId: string, cuerposDelServidor: Record<s
     return () => {
       vivo = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agendaId]);
 
   return cuerpos;

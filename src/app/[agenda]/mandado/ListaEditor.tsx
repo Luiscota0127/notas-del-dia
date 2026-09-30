@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useLista, useOnline, useVaciarCola } from "@/lib/hooks/useCache";
 import { parseNote, toggleCheck } from "@/lib/parse";
 
+import { AvisoCambioAjeno } from "@/components/AvisoCambioAjeno";
 import { DisplayLayer } from "@/components/editor/DisplayLayer";
 import "@/components/editor/layers.css";
 
@@ -25,7 +26,10 @@ export function ListaEditor({
   initialBody: string;
   partner: { name: string } | null;
 }) {
-  const { body, setBody, estado } = useLista(agendaId, initialBody);
+  const { body, setBody, estado, ajeno, tomarAjeno, descartarAjeno } = useLista(
+    agendaId,
+    initialBody,
+  );
   const online = useOnline();
   useVaciarCola(online);
 
@@ -236,6 +240,10 @@ export function ListaEditor({
           </p>
         </div>
       </header>
+
+      {ajeno !== null && (
+        <AvisoCambioAjeno onTomar={tomarAjeno} onDescartar={descartarAjeno} />
+      )}
 
       <div className="mb-3">
         <button type="button" onClick={agregarAlFinal} className="btn-ghost text-sm">

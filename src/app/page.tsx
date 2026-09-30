@@ -11,9 +11,9 @@ import { getAgendaPorDefecto, requireUser } from "@/lib/db/queries";
  * Si no hay ninguna, se cae en /agendas, que es donde se crea la primera.
  */
 export default async function Home() {
-  const user = await requireUser();
+  await requireUser();
 
-  const agenda = await getAgendaPorDefecto(user.id);
+  const agenda = await getAgendaPorDefecto();
   if (!agenda) redirect("/agendas");
 
   redirect(`/${agenda.id}`);
