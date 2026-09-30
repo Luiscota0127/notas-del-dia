@@ -23,7 +23,10 @@ create table if not exists agendas (
   name        text not null check (char_length(btrim(name)) between 1 and 60),
   color       text not null default '#f59e0b',
   created_by  uuid not null references profiles(id) on delete cascade,
-  created_at  timestamptz not null default now()
+  created_at  timestamptz not null default now(),
+  -- La necesita el trigger agendas_touch de abajo. Sin esta columna, cualquier
+  -- UPDATE de agendas falla con 42703: renombrar una agenda reventaba.
+  updated_at  timestamptz not null default now()
 );
 
 comment on table agendas is
