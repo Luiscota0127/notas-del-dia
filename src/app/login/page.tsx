@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { ContinuarSesion } from "@/components/ContinuarSesion";
 import { LoginForm } from "@/components/LoginForm";
+import { hayClaveDeAcceso } from "@/lib/acceso";
 import { hasSupabaseEnv } from "@/lib/db/client";
 import { getUser } from "@/lib/db/queries";
 
@@ -22,7 +23,11 @@ export default async function LoginPage() {
             /agendas. Sin esto, el link deja al usuario parado acá. */}
         <ContinuarSesion />
 
-        {hasSupabaseEnv() ? <LoginForm /> : <SinConfigurar />}
+        {hasSupabaseEnv() ? (
+          <LoginForm requiereClave={hayClaveDeAcceso()} />
+        ) : (
+          <SinConfigurar />
+        )}
       </div>
     </main>
   );
