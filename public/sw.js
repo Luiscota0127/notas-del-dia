@@ -15,18 +15,25 @@
  * error clásico y no se ve en desarrollo.
  */
 
-const VERSION = "v2";
+const VERSION = "v3";
 const CACHE = `notas-shell-${VERSION}`;
 
-/* El shell. Son los archivos que existen siempre, sin hash.
-   Los _next/static/* con hash los mete el runtime cache-first.
+/* El shell. SOLO archivos sin sesión.
 
-   "/shell" NO está acá a propósito: se cachea en la primera navegación con red,
-   porque sirve de fallback para cualquier ruta sin conexión. Precachearlo con una
-   URL inventada no funciona. */
+   "/", "/hoy" y "/mandado" NO van acá, y es lo más importante de este archivo.
+   Con la sesión cerrada las tres responden 307 a /login, y cache.addAll sigue el
+   redirect: lo que queda bajo esas claves es el HTML del login. Medido: 9206
+   bytes idénticos en las dos rutas, que es la misma página.
+
+   Y como addAll solo corre en el install —una vez, en la primera visita de
+   cualquiera, que es deslogueada— el shell cacheado era el login para siempre,
+   aunque después la persona entrara con sesión. Nunca se actualizaba.
+
+   Las rutas con sesión no se precachean. Se resuelven en runtime contra la red,
+   y sin red lo que hay son los datos de IndexedDB (`src/lib/cache.ts`), que es
+   justamente para qué existe el cache: el HTML sin red no sirve de nada si
+   encima es la pantalla equivocada. */
 const SHELL = [
-  "/",
-  "/hoy",
   "/manifest.webmanifest",
   "/icon-192.png",
   "/icon-512.png",
@@ -117,44 +124,69 @@ async function cachePrimero(request) {
 
 async function redPrimero(request) {
   const cache = await caches.open(CACHE);
+  const url = new URL(request.url);
+
   try {
     const respuesta = await fetch(request);
 
-    // Cachear el shell con red, para tener un fallback si después no hay.
-    if (respuesta.ok && respuesta.type === "basic") {
-      cache.put("/shell", respuesta.clone());
+    // Cachear por ruta, no en una clave "/shell" compartida.
+    //
+    // La versión anterior guardaba TODA navegación buena bajo "/shell", o sea una
+    // sola entrada: "la última página que se vio". Sin red, /mandado devolvía la
+    // nota que estaba abierta, y /hoy devolvía la lista de mandado. El SW
+    // respondía 200 y la app se rompía más adelante, al pedir el segmento RSC
+    // de una ruta que no era la que le habían servido.
+    //
+    // Ahora cada ruta tiene su HTML. Sin red se sirve el de esa misma ruta, que
+    // es lo único que puede servir bien.
+    if (respuesta.ok && respuesta.type === "basic" && !url.pathname.startsWith("/api/")) {
+      cache.put(url.pathname, respuesta.clone());
     }
+
+    // Los payloads RSC de esta misma ruta. App Router los pide por aparte para
+    // pintar después de una navegación cliente, y sin ellos la página carga y se
+    // queda en blanco. La clave es la ruta con el prefijo "rsc:" para que no
+    // choque con el HTML de la misma ruta.
+    const rsc = request.headers.get("rsc") || request.headers.get("next-router-prefetch");
+    if (rsc && respuesta.ok) {
+      cache.put(rscKey(url), respuesta.clone());
+    }
+
     return respuesta;
   } catch {
-    // Sin red.
-
-    // 1. La URL exacta, si se pidió antes.
-    const exacto = await cache.match(request);
-    if (exacto) return exacto;
-
-    // 2. La misma ruta SIN query string. Navegar a /2026-09-01?demo=1 pide
-    //    /2026-09-01?demo=1, que nunca se cacheó; sin este paso caería al shell
-    //    aunque /2026-09-01 esté cacheada.
-    const url = new URL(request.url);
-    const sinQuery = new Request(url.origin + url.pathname, { headers: request.headers });
-    const porRuta = await cache.match(sinQuery);
-    if (porRuta) return porRuta;
-
-    // 3. El shell: la última navegación buena, que es de donde salen los chunks.
-    const shell = await cache.match("/shell");
-    if (shell) return shell;
-
-    // 4. La raíz precacheada.
-    const inicio = await cache.match("/");
-    if (inicio) return inicio;
-
-    return new Response(
-      "<!doctype html><meta charset=utf-8><title>Sin conexión</title>" +
-        '<body style="background:#111;color:#e4e4e7;font-family:system-ui;padding:2rem">' +
-        "<h1>Sin conexión</h1><p>La app todavía no se descargó. Abrila con internet una vez.</p>",
-      { headers: { "Content-Type": "text/html; charset=utf-8" }, status: 200 },
-    );
+    return desdeCache(request, url, cache);
   }
+}
+
+const rscKey = (url) => new Request(url.origin + "/__rsc__" + url.pathname);
+
+/**
+ * Sin red. Tres pasos y un mensaje honesto.
+ *
+ * No hay un shell universal que servir: cada ruta es una página distinta con sus
+ * datos. Lo que hay son los archivos estáticos, que sí son los mismos para todos,
+ * y los datos, que están en IndexedDB.
+ */
+async function desdeCache(request, url, cache) {
+  // 1. Lo que se pidió antes, exacto.
+  const exacto = await cache.match(request);
+  if (exacto) return exacto;
+
+  // 2. El payload RSC de esta ruta, si se cacheó.
+  const rsc = await cache.match(rscKey(url));
+  if (rsc) return rsc;
+
+  // 3. El HTML de esta misma ruta, si se cacheó en una visita anterior.
+  const html = await cache.match(url.origin + url.pathname);
+  if (html) return html;
+
+  // 4. Nada. Decirlo es mejor que servir la página de otro lado.
+  return new Response(
+    "<!doctype html><meta charset=utf-8><title>Sin conexión</title>" +
+      '<body style="background:#111;color:#e4e4e7;font-family:system-ui;padding:2rem">' +
+      "<h1>Sin conexión</h1><p>Esta pantalla no se descargó todavía. Abrila con internet una vez y después anda sin señal.</p>",
+    { headers: { "Content-Type": "text/html; charset=utf-8" }, status: 200 },
+  );
 }
 
 /*

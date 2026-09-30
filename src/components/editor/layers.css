@@ -204,8 +204,13 @@
   /* Centra los 44px de alto sobre los 27.2px de la línea. */
   top: calc(var(--linea) / 2 - 22px);
   /* El `☐ ` mide ~1.2em. El botón arranca en 0 y el cuadrado de 16px queda
-     dentro de los 44px. Este margen lo alinea con donde estaba el carácter. */
-  margin-left: calc(var(--ancho-prefijo, 1.2em) * -1 + 2px);
+     dentro de los 44px. Este margen lo alinea con donde estaba el carácter.
+
+     `left` tiene que quedar en 0 y el alineado se hace SOLO acá. No son dos
+     formas de hacer lo mismo: `left` y `margin-left` se suman. Poner left:4px
+     mueve el cuadrado 4px a la derecha de la línea, que es justo el desvío que
+     esta regla existe para cancelar. Medido: sin left el desvío es -18.4px,
+     con left:4px queda en -14.4px. */
 }
 
 .caja {

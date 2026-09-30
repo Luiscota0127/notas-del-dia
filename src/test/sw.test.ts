@@ -59,7 +59,7 @@ describe("el service worker no cachea lo que no debe", () => {
 });
 
 describe("la estrategia de cada tipo de request", () => {
-  it("navegación: red primero con fallback al shell", () => {
+  it("navegación: red primero con fallback", () => {
     expect(sw).toContain("esNavegacion");
     expect(sw).toContain("redPrimero");
     // El fallback tiene que existir: sin red y sin cache, la app no abre.
@@ -74,6 +74,60 @@ describe("la estrategia de cada tipo de request", () => {
   it("el shell se precachea en install, no en fetch", () => {
     expect(sw).toMatch(/addEventListener\("install"/);
     expect(sw).toMatch(/cache\.addAll\(SHELL\)/);
+  });
+});
+
+/**
+ * El precache NO puede contener rutas con sesión.
+ *
+ * `cache.addAll` sigue los redirects, y con la sesión cerrada `/`, `/hoy` y
+ * `/mandado` responden 307 a `/login`. Lo que quedaba bajo esas claves era el
+ * HTML del login: 9206 bytes idénticos, medido en producción. Y como addAll
+ * corre una sola vez, en la primera visita de cualquiera —que es deslogueada—
+ * ese login quedaba cacheado para siempre, aunque después hubiera sesión.
+ *
+ * Estos tests existen porque el bug no se ve: la app abre, se ven estilos, y lo
+ * que falla es que sin red no aparecen las notas.
+ */
+describe("el precache solo tiene archivos sin sesión", () => {
+  const bloque = sw.slice(sw.indexOf("const SHELL"), sw.indexOf("];", sw.indexOf("const SHELL")));
+
+  it("no precachea /, ni /hoy, ni /mandado", () => {
+    expect(bloque).not.toContain('"/"');
+    expect(bloque).not.toContain('"/hoy"');
+    expect(bloque).not.toContain('"/mandado"');
+    expect(bloque).not.toContain('"/semana"');
+    expect(bloque).not.toContain('"/login"');
+  });
+
+  it("sí precachea los estáticos que no dependen de la sesión", () => {
+    expect(bloque).toContain("/manifest.webmanifest");
+    expect(bloque).toContain("/icon-512.png");
+  });
+});
+
+describe("cada ruta se cachea por separado", () => {
+  it("nadie escribe en la clave compartida /shell", () => {
+    // Una sola entrada para toda navegación es "la última página que se vio".
+    // Sin red, /mandado devolvía la nota que estaba abierta: el SW respondía
+    // 200 y la app se rompía después, al pedir el RSC de otra ruta.
+    //
+    // Busca `cache.put("/shell"` y no la palabra "shell": los comentarios
+    // cuentan la historia de por qué ya no existe, y un test que falla por un
+    // comentario obliga a borrar la explicación.
+    expect(sw).not.toContain('cache.put("/shell"');
+    expect(sw).not.toContain('cache.match("/shell")');
+  });
+
+  it("cachea el HTML bajo el pathname de la request", () => {
+    expect(sw).toMatch(/cache\.put\(url\.pathname,/);
+  });
+
+  it("cachea el payload RSC, que App Router pide por aparte", () => {
+    // Sin esto, la navegación cliente pide el segmento y la página queda en
+    // blanco aunque el HTML haya salido del cache.
+    expect(sw).toContain("next-router-prefetch");
+    expect(sw).toContain("rscKey");
   });
 });
 
