@@ -10,13 +10,15 @@
 -- Antes:  notes(user_id, date)  con unique(user_id, date)
 -- Ahora:  notes(agenda_id, date) con unique(agenda_id, date)
 --
--- Para dos personas esto se comporta como la lista de mandado. Para seis, es un
--- sistema de agendas de verdad.
+-- RE-EJECUTABLE. Todo lleva IF EXISTS / IF NOT EXISTS a propósito: esta
+-- migración se aplicó a mano en el SQL Editor, y no hay forma de saber si el
+-- intento anterior hizo rollback completo o dejó la base a medias. Correrla dos
+-- veces tiene que ser un no-op, no un error.
 
 -- ---------------------------------------------------------------------------
--- agendas
+-- Tablas
 -- ---------------------------------------------------------------------------
-create table agendas (
+create table if not exists agendas (
   id          uuid primary key default gen_random_uuid(),
   name        text not null check (char_length(btrim(name)) between 1 and 60),
   color       text not null default '#f59e0b',
@@ -27,15 +29,7 @@ create table agendas (
 comment on table agendas is
   'Una agenda compartida. La libreta personal de cada quien es una agenda con un solo miembro.';
 
-create trigger agendas_touch before update on agendas
-  for each row execute function touch_updated_at();
-
--- ---------------------------------------------------------------------------
--- agenda_miembros
--- ---------------------------------------------------------------------------
--- La pertenencia es lo que decide todo. No hay boolean "compartida": compartir
--- es agregar un segundo fila acá, y no compartir es tener una sola.
-create table agenda_miembros (
+create table if not exists agenda_miembros (
   agenda_id  uuid not null references agendas(id) on delete cascade,
   profile_id uuid not null references profiles(id) on delete cascade,
   rol        text not null default 'miembro' check (rol in ('dueno', 'miembro')),
@@ -45,23 +39,22 @@ create table agenda_miembros (
 
 -- La lista de agendas de una persona es su pantalla de inicio. Este índice la
 -- resuelve sin sort y es el hot path de cada carga.
-create index agenda_miembros_perfil on agenda_miembros (profile_id, agenda_id);
+create index if not exists agenda_miembros_perfil on agenda_miembros (profile_id, agenda_id);
 
--- ---------------------------------------------------------------------------
--- agenda_invitaciones
--- ---------------------------------------------------------------------------
--- Una invitación pendiente: alguien con este email puede unirse a la agenda.
-create table agenda_invitaciones (
+create table if not exists agenda_invitaciones (
   id          uuid primary key default gen_random_uuid(),
   agenda_id   uuid not null references agendas(id) on delete cascade,
   email       text not null,
   invited_by  uuid not null references profiles(id) on delete cascade,
   created_at  timestamptz not null default now(),
-  -- Una invitación por email por agenda: invitar dos veces no crea dos filas.
   unique (agenda_id, email)
 );
 
-create index agenda_invitaciones_email on agenda_invitaciones (email);
+create index if not exists agenda_invitaciones_email on agenda_invitaciones (email);
+
+drop trigger if exists agendas_touch on agendas;
+create trigger agendas_touch before update on agendas
+  for each row execute function touch_updated_at();
 
 -- ---------------------------------------------------------------------------
 -- Helpers de RLS
@@ -138,45 +131,79 @@ where not exists (
 -- ---------------------------------------------------------------------------
 -- notes: de persona a agenda
 -- ---------------------------------------------------------------------------
-alter table notes add column agenda_id uuid references agendas(id) on delete cascade;
+--
+-- EL ORDEN IMPORTA. Este bloque falló la primera vez con
+--   2BP01: cannot drop column user_id because other objects depend on it
+-- porque se dropea la columna antes que las policies.
+--
+-- DROP COLUMN se lleva automáticamente los índices y constraints que dependen
+-- SOLO de esa columna, pero NO se lleva las policies. Hay que tirarlas a mano
+-- primero. Y el índice hay que dropearlo explícitamente igual, porque después
+-- del DROP COLUMN ya no existe y un `drop index` sin if exists fallaría.
+drop policy if exists "own notes" on notes;
+drop index if exists notes_user_date_desc;
+alter table notes drop constraint if exists notes_user_id_date_key;
 
+alter table notes add column if not exists agenda_id uuid references agendas(id) on delete cascade;
+
+-- El mudado de datos va en un bloque que chequea si la columna sigue ahí.
+--
+-- Sin esto la migración NO es re-ejecutable a pesar de los IF EXISTS: si un
+-- intento anterior llegó a dropear user_id, el UPDATE que la referencia falla
+-- con "column does not exist" y no hay forma de distinguishing ese caso del
+-- primero. El bloque convierte una falla en un no-op.
+--
 -- Subquery y no un UPDATE ... FROM: si una persona llegara a tener dos agendas,
 -- el join devolvería dos filas y Postgres elige una al azar. Con LIMIT 1 y
 -- orden por fecha, la que se elige es la más antigua y siempre es la misma.
-update notes n
-set agenda_id = (
-  select a.id from agendas a
-  where a.created_by = n.user_id
-  order by a.created_at asc
-  limit 1
-)
-where n.agenda_id is null;
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'notes'
+      and column_name = 'user_id'
+  ) then
+    update notes n
+    set agenda_id = (
+      select a.id from agendas a
+      where a.created_by = n.user_id
+      order by a.created_at asc
+      limit 1
+    )
+    where n.agenda_id is null;
+  end if;
+end;
+$$;
 
 alter table notes alter column agenda_id set not null;
 
-alter table notes drop constraint notes_user_id_date_key;
-alter table notes drop column user_id;
+alter table notes drop column if exists user_id;
 
-create unique index notes_agenda_date on notes (agenda_id, date);
-create index notes_agenda_date_desc on notes (agenda_id, date desc);
-
-drop index notes_user_date_desc;
+create unique index if not exists notes_agenda_date on notes (agenda_id, date);
+create index if not exists notes_agenda_date_desc on notes (agenda_id, date desc);
 
 -- ---------------------------------------------------------------------------
 -- lista: de singleton global a una por agenda
 -- ---------------------------------------------------------------------------
-alter table lista add column agenda_id uuid references agendas(id) on delete cascade;
+drop policy if exists "leer la lista" on lista;
+drop policy if exists "escribir la lista" on lista;
+drop policy if exists "actualizar la lista" on lista;
+drop index if exists lista_singleton;
+
+alter table lista add column if not exists agenda_id uuid references agendas(id) on delete cascade;
 
 -- La lista que ya existe era global y compartida por la pareja. Va a la agenda
 -- más antigua, que es la primera libreta personal que se creó. Es una decisión
 -- arbitraria y está anotada como tal: si al importar preferís otra, es cambiar
 -- el ORDER BY.
-update lista set agenda_id = (select id from agendas order by created_at asc limit 1);
+update lista
+set agenda_id = (select id from agendas order by created_at asc limit 1)
+where agenda_id is null;
 
 alter table lista alter column agenda_id set not null;
 
-drop index lista_singleton;
-create unique index lista_agenda_singleton on lista (agenda_id);
+create unique index if not exists lista_agenda_singleton on lista (agenda_id);
 
 -- ---------------------------------------------------------------------------
 -- RLS
@@ -185,49 +212,54 @@ alter table agendas enable row level security;
 alter table agenda_miembros enable row level security;
 alter table agenda_invitaciones enable row level security;
 
-drop policy "own notes" on notes;
-drop policy "leer la lista" on lista;
-drop policy "escribir la lista" on lista;
-drop policy "actualizar la lista" on lista;
-
 -- agendas --------------------------------------------------------------------
+drop policy if exists "leer mis agendas" on agendas;
 create policy "leer mis agendas" on agendas
   for select using (es_miembro(id, auth.uid()));
 
+drop policy if exists "crear agenda" on agendas;
 create policy "crear agenda" on agendas
   for insert with check (created_by = auth.uid());
 
+drop policy if exists "editar mis agendas" on agendas;
 create policy "editar mis agendas" on agendas
   for update using (es_miembro(id, auth.uid()));
 
+drop policy if exists "borrar agenda propia" on agendas;
 create policy "borrar agenda propia" on agendas
   for delete using (es_dueno(id, auth.uid()));
 
 -- agenda_miembros ------------------------------------------------------------
--- Solo el dueño invite o saca gente. Un miembro no puede ampliar la agenda a
+-- Solo el dueño invita o saca gente. Un miembro no puede ampliar la agenda a
 -- espaldas de los demás.
+drop policy if exists "leer miembros de mis agendas" on agenda_miembros;
 create policy "leer miembros de mis agendas" on agenda_miembros
   for select using (es_miembro(agenda_id, auth.uid()));
 
+drop policy if exists "agregar miembros si soy dueño" on agenda_miembros;
 create policy "agregar miembros si soy dueño" on agenda_miembros
   for insert with check (es_dueno(agenda_id, auth.uid()));
 
+drop policy if exists "sacar miembros si soy dueño" on agenda_miembros;
 create policy "sacar miembros si soy dueño" on agenda_miembros
   for delete using (es_dueno(agenda_id, auth.uid()));
 
 -- agenda_invitaciones --------------------------------------------------------
--- El dueño ve las invitaciones que él mandó.
+drop policy if exists "leer invitaciones que mandé" on agenda_invitaciones;
 create policy "leer invitaciones que mandé" on agenda_invitaciones
   for select using (es_dueno(agenda_id, auth.uid()));
 
+drop policy if exists "mandar invitaciones si soy dueño" on agenda_invitaciones;
 create policy "mandar invitaciones si soy dueño" on agenda_invitaciones
   for insert with check (es_dueno(agenda_id, auth.uid()));
 
+drop policy if exists "revocar invitaciones" on agenda_invitaciones;
 create policy "revocar invitaciones" on agenda_invitaciones
   for delete using (es_dueno(agenda_id, auth.uid()));
 
 -- Y el invitado ve la suya propia, que es como aparece "te invitaron a X" en la
 -- app. Sin esta policy, abrir una invitación te daría una pantalla vacía.
+drop policy if exists "leer mi invitación" on agenda_invitaciones;
 create policy "leer mi invitación" on agenda_invitaciones
   for select using (
     lower(email) = lower((select email from auth.users where id = auth.uid()))
@@ -236,27 +268,35 @@ create policy "leer mi invitación" on agenda_invitaciones
 -- notes ----------------------------------------------------------------------
 -- Los dos leen y los dos escriben en las agendas donde son miembros. Mismo
 -- criterio que tenía `lista`.
+drop policy if exists "leer notas de mis agendas" on notes;
 create policy "leer notas de mis agendas" on notes
   for select using (es_miembro(agenda_id, auth.uid()));
 
+drop policy if exists "escribir notas de mis agendas" on notes;
 create policy "escribir notas de mis agendas" on notes
   for insert with check (es_miembro(agenda_id, auth.uid()));
 
+drop policy if exists "actualizar notas de mis agendas" on notes;
 create policy "actualizar notas de mis agendas" on notes
   for update using (es_miembro(agenda_id, auth.uid()))
   with check (es_miembro(agenda_id, auth.uid()));
 
--- Sin policy de delete: una nota no se borra desde el celular por accidente.
+-- Borrar una nota solo lo puede el dueño de la agenda, y no desde un botón
+-- suelto. Con "cualquiera con perfil" un toque mal borraba una semana.
+drop policy if exists "borrar notas de mis agendas" on notes;
 create policy "borrar notas de mis agendas" on notes
   for delete using (es_dueno(agenda_id, auth.uid()));
 
 -- lista ----------------------------------------------------------------------
+drop policy if exists "leer la lista de mis agendas" on lista;
 create policy "leer la lista de mis agendas" on lista
   for select using (es_miembro(agenda_id, auth.uid()));
 
+drop policy if exists "escribir la lista de mis agendas" on lista;
 create policy "escribir la lista de mis agendas" on lista
   for insert with check (es_miembro(agenda_id, auth.uid()));
 
+drop policy if exists "actualizar la lista de mis agendas" on lista;
 create policy "actualizar la lista de mis agendas" on lista
   for update using (es_miembro(agenda_id, auth.uid()))
   with check (es_miembro(agenda_id, auth.uid()));
