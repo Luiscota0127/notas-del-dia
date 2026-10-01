@@ -13,6 +13,14 @@ El 3 es el que importa en iPhone. Las Web Notifications no llegan con la app en
 background, así que sin email un recordatorio se pierde en el bolsillo. Ese canal
 corre en el servidor con `pg_cron`, disparado por `0003_cron.sql` cada 5 minutos.
 
+> **El login y los recordatorios usan SMTP distintos.** El login pasa por el SMTP
+> que configuraste en **Authentication → Providers → Email** del panel de Supabase.
+> Los recordatorios van por `SMTP_URL`, un secreto propio de la Function. Son dos
+> cosas separadas: arreglar el login no arregla los recordatorios y al revés.
+>
+> Si el login devuelve 500 "Error sending confirmation email", el problema es el
+> del panel: [`smtp-no-envia.md`](smtp-no-envia.md).
+
 ## Qué hay que instalar
 
 Esto **no funciona hasta que se corran los pasos de abajo**. La Function es
