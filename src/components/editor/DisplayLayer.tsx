@@ -8,7 +8,7 @@ import type { Task } from "@/lib/parse";
 /**
  * La capa de display: el texto bonito.
  *
- * Nunca recibe el foco, nunca se edita. Existe solo para verse. La `textarea` de
+ * Nunca se edita. Existe solo para verse. La `textarea` de
  * abajo es la que recibe la escritura, y por eso los checkboxes de acá no pueden
  * romper el caret.
  *
@@ -110,12 +110,18 @@ export function DisplayLayer({
   onToggle: (index: number) => void;
 }) {
   return (
-    // aria-hidden: la capa es decorativa. El lector de pantalla debe leer la
-    // textarea, que tiene el texto real y es un textarea de verdad.
-    <div className="capa" aria-hidden="true">
+    // La capa NO es aria-hidden entera. Antes lo era, y por eso los checkboxes
+    // —que viven acá— quedaban invisibles para el lector de pantalla: no había
+    // forma de saber que una tarea estaba sin marcar.
+    //
+    // Ahora cada parte decorativa se oculta por separado: los encabezados, los
+    // textos y las líneas vacías. El lector recibe el texto de la textarea, que
+    // ya lo declara entero y con el corrector funcionando, y los estados de las
+    // casillas de acá. Si se anunciara todo dos veces, peor que no anunciar.
+    <div className="capa">
       {tasks.map((task) => {
         if (task.kind === "blank") {
-          return <div key={task.index} className="linea linea-vacia" />;
+          return <div key={task.index} className="linea linea-vacia" aria-hidden="true" />;
         }
 
         if (task.kind === "heading") {
@@ -123,6 +129,7 @@ export function DisplayLayer({
             <div
               key={task.index}
               className={task.heading === "mes" ? "linea mes" : "linea dia"}
+              aria-hidden="true"
             >
               {task.body}
             </div>
@@ -136,21 +143,52 @@ export function DisplayLayer({
                   textarea. Esto reserva EXACTAMENTE el ancho que ocupa allá, así
                   que el cuerpo del texto queda alineado por construcción, sin
                   medir píxeles ni adivinar el ancho del carácter. */}
-              <span className="prefijo">{task.prefix}</span>
-              {/* tabIndex={-1}: el recorrido de tabulación va a la textarea, no
-                  a estos botones. El checkbox sigue siendo usable con clic. */}
-              <button
-                type="button"
+              <span className="prefijo" aria-hidden="true">
+                {task.prefix}
+              </span>
+
+              {/* Un `<input type="checkbox">` de verdad, no un `<button>` pintado.
+                  Antes era un button con `aria-hidden` y `tabIndex={-1}`: se
+                  podía tocar con el ratón y no se podía tocar con el teclado ni
+                  announcing el lector de pantalla. Eso rompe WCAG 2.1.1
+                  (Keyboard) y 4.1.2 (Name, Role, Value), y contradice la regla
+                  dura 2 de AGENTS.md ("checkboxes operables con Enter").
+
+                  El `aria-label` lleva el texto de la línea, así que se anuncia
+                  "08 sep (dosis 3…), casilla, sin marcar" en vez de una casilla
+                  sin nombre. El texto de la línea se repite como `body`, que va
+                  dentro del `.capa` aria-hidden: al lector le llega por el
+                  textarea, una sola vez.
+
+                  La etiqueta visible (`<label for>`) no envuelve el texto a
+                  propósito. `visual.md` lo pide, pero con una textarea debajo el
+                  clic en el texto tiene que POSICIONAR EL CARET: si el texto
+                  marcara la casilla, no se podría tocar una palabra para
+                  corregirla. El clic marca desde el cuadrado, con 44x44 de área
+                  real, y el nombre accesible viene del `aria-label`. */}
+              <input
+                type="checkbox"
                 className="hit"
-                onClick={() => onToggle(task.index)}
-                tabIndex={-1}
+                checked={task.done}
+                onChange={() => onToggle(task.index)}
+                onKeyDown={(e) => {
+                  // Espacio ya lo marca el navegador. Enter no: en un checkbox
+                  // nativo Enter no alterna el estado, y AGENTS.md lo pide
+                  // explícitamente ("checkboxes operables con Enter").
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  onToggle(task.index);
+                }}
                 data-testid={`check-${task.index}`}
-                aria-hidden="true"
-              >
+                aria-label={nombreDeLaLinea(task)}
+                id={`check-nota-${task.index}`}
+              />
+              <label htmlFor={`check-nota-${task.index}`} className="caja-envoltura">
                 <span className="caja" data-done={task.done || undefined}>
-                  <span className="caja-marca" />
+                  <span className="caja-marca" aria-hidden="true" />
                 </span>
-              </button>
+              </label>
+
               <span className={`texto${task.done ? " hecho" : ""}`}>
                 <Cuerpo task={task} />
               </span>
@@ -160,7 +198,7 @@ export function DisplayLayer({
 
         if (task.kind === "bullet") {
           return (
-            <div key={task.index} className="linea linea-bullet hanging">
+            <div key={task.index} className="linea linea-bullet hanging" aria-hidden="true">
               {/* El `•  ` de la referencia, literal. Misma fuente, mismo ancho,
                   misma posición que en la textarea. */}
               <span className="prefijo">{task.prefix}</span>
@@ -172,7 +210,7 @@ export function DisplayLayer({
         }
 
         return (
-          <div key={task.index} className="linea">
+          <div key={task.index} className="linea" aria-hidden="true">
             <span className="texto">
               <Cuerpo task={task} />
             </span>
@@ -182,7 +220,21 @@ export function DisplayLayer({
 
       {/* Sin esto la última línea no se puede scrollear hasta abajo: Safari no
           deja pasar del último elemento. */}
-      <div className="linea linea-colchon" />
+      <div className="linea linea-colchon" aria-hidden="true" />
     </div>
   );
+}
+
+/**
+ * El nombre accesible del checkbox: el texto de la línea tal como se ve.
+ *
+ * Sin esto el lector anunciaría cinco "casilla, sin marcar" sin decir cuáles.
+ * Con la hora adelante porque así se lee en pantalla, y cae al `title` si el
+ * `body` quedó vacío (una línea que es solo `☐ `).
+ */
+function nombreDeLaLinea(task: Task): string {
+  const hora = task.time
+    ? `${task.time}${task.timeRange ? ` a ${task.timeRange[1]}` : ""} `
+    : "";
+  return (hora + task.body).trim() || task.title.trim() || "Tarea";
 }

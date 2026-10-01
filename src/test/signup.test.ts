@@ -56,7 +56,40 @@ describe("volver a entrar no pide nombre", () => {
   });
 
   it("el campo de nombre solo existe en el modo crear", () => {
-    expect(form).toMatch(/\{creando && \(\s*<div>\s*<label htmlFor="nombre"/);
+    // Sigue siendo lo que importa: el campo no existe en el modo entrar. El
+    // rótulo pasó a ser un `<Rotulo>` visible en vez de un `sr-only`, así que
+    // ya no se puede anclar al markup exacto del label.
+    expect(form).toMatch(/\{creando && \(\s*<div className="flex flex-col gap-1">/);
+    expect(form).toMatch(/<Rotulo htmlFor="nombre">Cómo te llamamos<\/Rotulo>/);
+  });
+});
+
+describe("los campos del login tienen rótulo visible", () => {
+  // Antes los tres campos usaban `sr-only` y dejaban el placeholder como único
+  // nombre. El placeholder desaparece al escribir: con teclado en pantalla, el
+  // campo queda sin nombre justo cuando se lo está completando.
+  it("correo, clave y nombre se rotulan con `<Rotulo>`, no con `sr-only`", () => {
+    for (const [htmlFor, texto] of [
+      ["email", "Tu correo"],
+      ["clave", "Clave de acceso"],
+      ["nombre", "Cómo te llamamos"],
+    ] as const) {
+      expect(form, `falta el rótulo de ${htmlFor}`).toContain(
+        `<Rotulo htmlFor="${htmlFor}">${texto}</Rotulo>`,
+      );
+    }
+  });
+
+  it("no queda ningún campo con el rótulo oculto", () => {
+    // Se sacan los comentarios primero: el archivo explica por qué se dejó de
+    // usar la clase oculta, y ese texto no debe hacer fallar el test.
+    const sinComentarios = form.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    expect(sinComentarios).not.toContain("sr-only");
+  });
+
+  it("el placeholder del correo es un ejemplo, no una etiqueta", () => {
+    // `tucorreo@ejemplo.com` se leía como si fuera el nombre del campo.
+    expect(form).toContain('placeholder="nombre@ejemplo.com"');
   });
 });
 

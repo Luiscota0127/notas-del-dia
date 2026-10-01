@@ -13,10 +13,12 @@ export default async function LoginPage() {
   if (user) redirect("/agendas");
 
   return (
-    <main className="min-h-dvh flex items-center justify-center p-6">
-      <div className="w-full max-w-sm">
-        <h1 className="text-2xl mb-1">Notas del Día</h1>
-        <p className="text-dim mb-8">La libreta de pendientes de la casa.</p>
+    // Mismo `max-w-lg` y misma alineación a la izquierda que Ajustes y Agendas.
+    // Antes el login era `max-w-sm` centrado: al pasar de una pantalla a la otra
+    // el bloque se movía de lugar sin motivo, y se leía como otra app.
+    <main className="p-4 md:p-8 max-w-lg">
+      <h1 className="text-xl mb-1">Notas del Día</h1>
+      <p className="text-dim mb-8">La libreta de pendientes de la casa.</p>
 
         {/* El servidor no puede ver el token del magic link todavía. Este
             componente lo canjea del lado del cliente y, si hay sesión, manda a
@@ -28,7 +30,6 @@ export default async function LoginPage() {
         ) : (
           <SinConfigurar />
         )}
-      </div>
     </main>
   );
 }

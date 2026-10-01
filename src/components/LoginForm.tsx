@@ -16,6 +16,15 @@ import { pedirLink } from "@/app/login/acciones";
  * servidor y nunca llega al bundle. Ver el comentario de `acciones.ts` para por
  * qué no hacerlo en el cliente.
  */
+/** El rótulo de cada campo. Visible, no `sr-only`. */
+function Rotulo({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }) {
+  return (
+    <label htmlFor={htmlFor} className="block text-sm text-dim">
+      {children}
+    </label>
+  );
+}
+
 export function LoginForm({ requiereClave }: { requiereClave: boolean }) {
   const [creando, setCreando] = useState(false);
   const [email, setEmail] = useState("");
@@ -40,8 +49,12 @@ export function LoginForm({ requiereClave }: { requiereClave: boolean }) {
     setBusy(false);
     if (r.ok) return setSent(true);
 
-    if (r.motivo === "clave") return setError("Esa clave no es correcta.");
-    setError(r.mensaje ?? "No pude mandar el correo.");
+    if (r.motivo === "clave") {
+      // Con el qué hacer, no solo qué pasó: "no es correcta" deja a la persona
+      // mirando el teclado sin saber qué hacer.
+      return setError("Esa clave no es correcta. Revisala y mandá el link otra vez.");
+    }
+    setError(r.mensaje ?? "No pude mandar el correo. Probá de nuevo en un momento.");
   }
 
   if (sent) {
@@ -57,11 +70,13 @@ export function LoginForm({ requiereClave }: { requiereClave: boolean }) {
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
+      {/* El rótulo es visible y el placeholder es un ejemplo, no una etiqueta.
+         Con `sr-only` el único nombre del campo era el placeholder, que
+         desaparece al escribir: en el correo de una persona con teclado en
+         pantalla, el campo queda sin nombre justo cuando se está escribiendo. */}
       {creando && (
-        <div>
-          <label htmlFor="nombre" className="sr-only">
-            Cómo te llamamos
-          </label>
+        <div className="flex flex-col gap-1">
+          <Rotulo htmlFor="nombre">Cómo te llamamos</Rotulo>
           <input
             id="nombre"
             required
@@ -69,33 +84,35 @@ export function LoginForm({ requiereClave }: { requiereClave: boolean }) {
             autoComplete="name"
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
-            placeholder="Cómo te llamamos"
+            placeholder="Tu nombre"
             className="input"
           />
         </div>
       )}
 
-      <div>
-        <label htmlFor="email" className="sr-only">
-          Tu correo
-        </label>
+      <div className="flex flex-col gap-1">
+        <Rotulo htmlFor="email">Tu correo</Rotulo>
         <input
           id="email"
           type="email"
           required
           autoComplete="email"
+          inputMode="email"
+          /* El corrector marcando "nombre@ejemplo.com" en rojo mientras se
+             escribe es ruido: es un campo donde la ortografía no existe. */
+          spellCheck={false}
+          autoCapitalize="none"
+          autoCorrect="off"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="tucorreo@ejemplo.com"
+          placeholder="nombre@ejemplo.com"
           className="input"
         />
       </div>
 
       {requiereClave && (
-        <div>
-          <label htmlFor="clave" className="sr-only">
-            Clave de acceso
-          </label>
+        <div className="flex flex-col gap-1">
+          <Rotulo htmlFor="clave">Clave de acceso</Rotulo>
           <input
             id="clave"
             type="password"
@@ -103,7 +120,6 @@ export function LoginForm({ requiereClave }: { requiereClave: boolean }) {
             autoComplete="current-password"
             value={clave}
             onChange={(e) => setClave(e.target.value)}
-            placeholder="Clave de acceso"
             className="input"
           />
         </div>
@@ -113,8 +129,11 @@ export function LoginForm({ requiereClave }: { requiereClave: boolean }) {
         {busy ? "Mandando…" : "Mandarme un link"}
       </button>
 
+      {/* `role="alert"` anuncia apenas aparece, sin necesidad de mover el foco.
+          El color NO es `--dim`: un error en gris se confunde con texto
+          secundario. El acento es el color que ya significa "acá hay algo". */}
       {error && (
-        <p role="alert" className="text-dim">
+        <p role="alert" className="text-accent text-sm">
           {error}
         </p>
       )}

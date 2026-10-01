@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { ContadorDia } from "@/components/ContadorDia";
 import { AvisoCambioAjeno } from "@/components/AvisoCambioAjeno";
 import { useNota } from "@/lib/hooks/useCache";
-import { emptyNoteTemplate } from "@/lib/format";
+import { emptyNoteTemplate, formatLong } from "@/lib/format";
 import { parseNote, toggleCheck } from "@/lib/parse";
 
 import { DisplayLayer } from "./DisplayLayer";
@@ -405,7 +405,13 @@ export function NoteEditor({
           parten en varias líneas y se lee mal. */}
       <header className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="min-w-0">
-          <h1 className="text-xl">{date}</h1>
+          {/* La fecha en formato largo, no el ISO crudo: `2026-10-01` arriba y
+              `MARTES 01 SEP` en la nota son el mismo dato escrito de dos formas.
+              Pero NO `formatDayHeading`, que es exactamente lo que dice el
+              encabezado del cuerpo: salía "MARTES 01 SEP" dos veces, a 30px de
+              distancia. Acá va la forma legible y el encabezado de la nota queda
+              como el rótulo del día. */}
+          <h1 className="text-xl capitalize">{formatLong(date)}</h1>
           <p className="text-dim text-sm truncate">
             {me.name}
             {partner ? ` · viendo también a ${partner.name}` : ""}

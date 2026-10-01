@@ -100,9 +100,14 @@ npm run lint
 
 ## Ver el editor sin backend
 
-`/2026-09-01?demo=1` renderiza la nota real de la referencia desde
+`/casa/2026-09-01?demo=1` renderiza la nota real de la referencia desde
 `NEXT_PUBLIC_DEMO_NOTA`. Es la forma de revisar el render sin Supabase. El atajo
 existe solo en desarrollo.
+
+El `casa` adelante no es decorativo: la agenda es el primer segmento de
+`/[agenda]/[fecha]`. Sin él, `/2026-09-01?demo=1` matchea `/[agenda]` —que
+redirige a hoy— y la URL termina siendo `/2026-09-01/2026-10-01?demo=1`: el mes
+del calendario y el de la nota no coinciden.
 
 ## Trampas del editor de dos capas
 

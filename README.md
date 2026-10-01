@@ -32,11 +32,14 @@ Vitest
 Con `NEXT_PUBLIC_DEMO_NOTA` en `.env.local` (ya viene ahí), la ruta:
 
 ```
-http://localhost:3005/2026-09-01?demo=1
+http://localhost:3005/casa/2026-09-01?demo=1
 ```
 
 renderiza la nota real de la referencia. Es la forma de revisar el editor sin
 Supabase configurado. En producción ese atajo no existe.
+
+El `casa` es el id de agenda y va primero porque la ruta es `/[agenda]/[fecha]`.
+Si lo salteás, la URL resuelve contra `/[agenda]`, que salta a hoy.
 
 ## Development
 

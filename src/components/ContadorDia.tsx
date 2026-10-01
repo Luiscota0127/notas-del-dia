@@ -38,8 +38,13 @@ export function ContadorDia({ body }: { body: string }) {
           }}
         />
       </div>
-      {/* aria-live: el cambio se anuncia, no es solo visual. */}
-      <p aria-live="polite" className="text-dim text-sm whitespace-nowrap">
+      {/* aria-live: el cambio se anuncia, no es solo visual.
+          `tabular-nums`: el contador crece y decrece con cada marca, y con
+          cifras de ancho variable el número baila de lugar. */}
+      <p
+        aria-live="polite"
+        className="text-dim text-sm whitespace-nowrap tabular-nums"
+      >
         {cuenta.hechos}/{cuenta.total} completadas
         {limpio && " 🌙"}
       </p>

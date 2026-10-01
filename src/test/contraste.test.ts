@@ -177,3 +177,47 @@ describe("el botón, que no usa tokens para el texto", () => {
     }
   });
 });
+
+/**
+ * El hover y el pressed también son estados que el usuario ve, y también tienen
+ * que cumplir AA. Un estado que se mira un segundo mientras el puntero está
+ * encima no está exento.
+ *
+ * El hover NO aclara el acento. Con el texto del botón en blanco (tema claro),
+ * aclarar el fondo BAJA el contraste: medido, un 12% de blanco daba 4.06:1 y
+ * quedaba debajo del 4.5:1 de AA. Oscurecer mantiene los dos temas de lado.
+ *
+ * Estos valores se midieron en el navegador con `getComputedStyle`, y acá se
+ * reproducen con la fórmula de la spec sobre los mismos colores.
+ */
+function mezclar(base: string, otra: string, peso: number): string {
+  const a = hexToRgb(base)!;
+  const b = hexToRgb(otra)!;
+  return (
+    "#" +
+    a
+      .map((v, i) =>
+        Math.round(v * peso + b[i] * (1 - peso))
+          .toString(16)
+          .padStart(2, "0"),
+      )
+      .join("")
+  );
+}
+
+describe.each([
+  ["oscuro", oscuro],
+  ["claro", claro],
+])("estados del botón en %s", (_nombre, t) => {
+  it.each([
+    ["hover", 0.9],
+    ["pressed", 0.78],
+  ])("el %s sigue cumpliendo AA", (estado, peso) => {
+    const fondo = mezclar(t.accent, "#000000", peso);
+    const r = contraste(t["btn-fg"], fondo);
+    expect(
+      r,
+      `en ${estado} el texto (${t["btn-fg"]}) da ${r?.toFixed(2)}:1 sobre ${fondo} y necesita ${UMBRAL.texto}:1`,
+    ).toBeGreaterThanOrEqual(UMBRAL.texto);
+  });
+});
