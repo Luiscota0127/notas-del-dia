@@ -1,14 +1,67 @@
 # Backlog
 
-## 0. El borde de los controles no llega a 3:1 — DECISIÓN PENDIENTE
+Lo que está abierto, en el orden en que conviene hacerlo. Lo cerrado está más
+abajo, con por qué se cerró.
 
-**Estado:** medido, con los números a la vista, esperando decisión de diseño.
+Regla que vengo aplicando: **una entrada dice qué está verificado y qué se
+supone**. Casi todos los bugs de esta fase eran creíbles pero no ejecutados, y
+una lista que no distingue eso se vuelve una lista de intenciones.
 
-`--color-line` da **1.39:1 en oscuro y 1.48:1 en claro** contra su fondo. WCAG
-1.4.11 pide 3:1, pero solo para el borde que **identifica un control**, no para
-los separadores decorativos. El problema es que `--color-line` está haciendo las
-dos cosas a la vez: separa ítems de lista y además dibuja el borde de los inputs
-y de los botones fantasma.
+---
+
+## 1. El flujo con dos cuentas nunca se ejecutó
+
+**Estado:** no verificado. Es lo más importante que queda.
+
+Toda la app se probó con `?demo=1`, que abre la pantalla completa **sin tocar
+Postgres ni una vez**. Los tres bugs seguidos de la migración de agendas —policy
+que rompía `/agendas`, deadlock de RLS en crear agenda, trigger sin columna en
+renombrar— salieron de probar solo escrituras, que en demo no existen.
+
+Nunca se ejecutó, con dos sesiones reales:
+
+- crear una agenda
+- invitar a alguien por email y que acepte
+- los dos escribiendo en la misma nota
+
+**Hace falta:** una sesión real por persona. Con la confirmación de email prendida
+y el rate limit de Supabase, no se puede armar desde acá.
+
+## 2. Realtime: implementado, nunca visto funcionar
+
+**Estado:** código escrito, sin verificación de punta a punta.
+
+`useCambiosEnVivo` está completo y su cableado está cubierto por tests que leen
+el código. Lo que **no** se vio es que dos personas realmente vean los cambios
+del otro.
+
+El escenario que importa: uno escribe, el otro mira, y el cambio tiene que
+aparecer solo. Y el difícil: los dos escriben a la vez, que tiene que dar el
+aviso de "la otra persona guardó algo mientras escribías" en vez de pisarse.
+
+## 3. Offline con sesión
+
+**Estado:** verificado en local sin sesión. Con sesión, no.
+
+Ya funciona y está comprobado:
+
+- sin red, escribir deja la nota en el cache y **en la cola** (esto estaba roto
+  y se arregló: el store usaba `keyPath` y el objeto no lo tenía)
+- al recargar sin red, la nota sigue
+- con la red pero sin sesión válida, la cola **no** se vacía (el flush miraba
+  solo el `throw` y la server action no lanza)
+
+Lo que falta: confirmar que con sesión real la cola sube a Postgres y se vacía.
+Es el final de la cadena, y es el paso que nadie dio.
+
+## 4. El borde de los controles no llega a 3:1 — DECISIÓN DE DISEÑO
+
+**Estado:** medido, esperando decisión.
+
+`--color-line` da **1.39:1 en oscuro y 1.48:1 en claro**. WCAG 1.4.11 pide 3:1,
+pero solo para el borde que **identifica un control**, no para los separadores
+decorativos. El problema es que el mismo token hace las dos cosas: separa ítems
+de lista y además dibuja el borde de los inputs y de los botones fantasma.
 
 Los valores que sí cumplirían:
 
@@ -17,180 +70,86 @@ Los valores que sí cumplirían:
 | claro | `#d4d4d8` (1.48) | `#949494` (3.03) · `#8a8a8a` (3.45) |
 | oscuro | `#2e2e2e` (1.39) | `#5e5e5e` (2.91) · `#666666` (3.29) |
 
-**Lo que recomiendo:** partir el token. `--color-line` sigue sutil para
-decorar, y un `--color-border-control` nuevo, más fuerte, solo para `.input` y
-`.btn-ghost`. Así los separadores siguen livianos —que es el aspecto tipo Notion
-que fija `visual.md`— y los campos se ven de verdad.
+**Recomiendo partir el token:** `--color-line` sigue sutil para decorar, y un
+`--color-border-control` más fuerte solo para `.input` y `.btn-ghost`. Así los
+separadores siguen livianos —que es el aspecto tipo Notion que fija `visual.md`—
+y los campos se ven de verdad.
 
-**Lo que no recomiendo:** subir `--color-line` entero. Hace visibles todos los
-separadores de la app y la aleja del diseño de referencia.
+**No recomiendo subir `--color-line` entero:** hace visibles todos los separadores
+y aleja la app del diseño de referencia. `globals.css` pide justificación escrita
+antes de cambiar un valor, así que no lo toqué por mi cuenta.
 
-El test de contraste **no está en verde a propósito**: mientras la decisión esté
-abierta tiene que seguir diciendo que no llega. Un test que pasa porque bajé el
-umbral esconde el problema.
+El test de contraste **no está en verde a propósito**. Mientras la decisión esté
+abierta tiene que seguir diciendo que el contraste no llega; un test que pasa
+porque bajé el umbral esconde el problema.
 
-## 1. El precache guarda la pantalla de login — CERRADO
+## 5. El HTML cacheado lleva la nota adentro
 
-Arreglado en `dfc8d52` y verificado en producción: el precache ya no tiene `/`,
-`/hoy`, `/mandado` ni la clave compartida `/shell`. Solo manifest, íconos y los
-chunks con hash que se piden en runtime.
+**Estado:** riesgo conocido, sin arreglo.
 
-Dos cosas que quedan de esto, y que son riesgos reales:
-
-**El HTML por ruta se cachea con datos adentro.** `redPrimero` guarda cada
-respuesta de navegación bajo su pathname, y esa respuesta lleva la nota
-renderizada con la sesión de quien la pidió. En un teléfono compartido, la
+`redPrimero` cachea cada navegación bajo su pathname, y esa respuesta lleva la
+nota ya renderizada con la sesión de quien la pidió. En un teléfono compartido, la
 segunda persona ve la nota de la primera hasta que IndexedDB la reemplaza.
 
 No hay logout en el código donde colgar un `caches.delete()`. Si algún día se
-agrega, hay que borrar el cache ahí: es el punto donde el dato ajeno se va.
+agrega, ese es el punto donde el dato ajeno se va.
 
-**Sin sesión no hay shell universal.** `desdeCache` no puede servir "una página
-de app" cuando lo que se necesita son los datos de una nota concreta. Por eso,
-sin red y sin visita previa a esa ruta, la respuesta es el mensaje de Sin
-conexión y no una pantalla rota. Con red y con visita previa, funciona.
+## 6. Confirmar el email en un iPhone sin señal
 
-## 9. Compartir la agenda entre los dos
+**Estado:** anotado.
 
-**Estado:** decisión de diseño, sin empezar.
+Con la confirmación prendida, el enlace llega al teléfono que a veces no tiene
+red justo cuando toca confirmar. La nota de ese momento se pierde si no hay señal
+en ese instante. Vale la pena ver si la confirmación puede vivir en la agenda en
+vez de en `/login`.
 
-Hoy las notas **no** son compartidas: `notes` tiene `unique (user_id, date)` y la
-policy es `user_id = auth.uid()`. Cada persona tiene su libreta, como en Notion.
-Solo `lista` es compartida, y tiene su propia tabla justamente por eso (ver
-`0004_lista.sql`).
+## 7. Rate limit de Supabase
 
-El problema de hacer la nota compartida: dos personas escriben el mismo día, y
-la última que guarda pisa a la otra. Con `lista` no pasa porque es un documento
-continuo donde los dos agregan abajo. Con una nota por día, "agregar abajo" no
-significa nada porque la nota es de un día puntual.
+**Estado:** sigue. Unas pocas emails por hora, **compartidas entre las dos
+cuentas**.
 
-Lo que resuelve esto sin romper el modelo: **dejar la nota como es, y agregar la
-lista al día**. Es decir, `/mandado` pasa a embeberse en la nota del día, o la
-nota del día muestra la lista debajo. Un solo documento, los dos escriben, y la
-separación visual la hace el parser —que ya distingue `☐`, `•` y texto libre.
+No se nota mucho mientras nadie más entre, pero cualquier persona que conozca el
+dominio puede pedir un link a ese correo y agotarlo. La clave de acceso frena la
+puerta de la UI, no la API de auth.
 
-Alternativa más grande: una tabla `agenda` compartida como `lista`, donde cada
-día es una fila. Más limpio de modelar, pero es otro documento con otro editor, y
-la app ya tiene dos.
-
-**Falta decidir cuál.** No lo empiezo sin que lo elijas, porque las dos cambian el
-schema y el modelo mental.
-
-## 2. `/mandado` sin red no abre
-
-**Estado:** verificado que falla; la causa raíz probablemente es la misma que (1).
-
-Con red y sesión, `/mandado` funciona. Lo que falla es sin red, y es *además* del
-bug de carpeta que estaba antes (404 con la app entera andando, arreglado y con
-tests).
-
-Sin red, `/mandado` termina en la página de error del navegador
-(*"No se puede acceder a este sitio web"*), no en la app.
-
-Los requests que fallan:
-
-```
-ERR_INTERNET_DISCONNECTED  /hoy?_rsc=...
-ERR_FAILED                 /hoy
-```
-
-`?_rsc=` son los payloads de App Router. **Ninguno está precacheado**, y el
-HTML de `/` y `/hoy` no los incluye. Aunque el SW devuelva el shell, el cliente
-igual pide el segmento RSC de la ruta y lo necesita para pintar.
-
-Es el problema clásico de hacer offline con App Router: precachear HTML no
-alcanza, hacen falta los segmentos RSC, o desactivar la navegación cliente en el
-camino sin red.
-
-En local esto no se vio porque `?demo=1` atendía todo por SSR y el perfil del
-navegador ya tenía caches de corridas anteriores.
-
-Para probarlo con red hace falta una sesión, y con la confirmación ya prendida
-tampoco se puede sacar por API. Alguien tiene que abrir el correo y tocar el
-link, y ahí avisar qué pasa — error, pantalla en blanco, 500, la lista vacía. Con
-el síntoma se acota en un paso.
-
-## 3. El `localhost` no está en el código
-
-**Estado:** descartado, verificado.
-
-No hay ningún `localhost:3000` ni `:3005` en producción. Inspeccionados los 10
-chunks que carga `/login` (438.308 bytes) más `sw.js`: cero coincidencias. En el
-repo solo aparece en `README.md` y en docs, que es texto.
-
-El `localhost` que se ve viene de la **configuración de Supabase**, no del
-código:
-
-**Supabase → Authentication → URL Configuration → Site URL**
-
-Supabase ignora el `emailRedirectTo` si el origen no está permitido y manda a la
-Site URL. El link que llegó al correo probablemente apuntaba a `localhost:3000`
-o `localhost:3005`.
-
-| Campo | Valor |
-|---|---|
-| **Site URL** | `https://notas-del-dia.vercel.app` |
-| **Redirect URLs** | agregar `https://notas-del-dia.vercel.app/login` |
-
-Con eso el link vuelve a la app en vez de al puerto viejo, donde vive
-`desayunos-web`.
-
-Lo raro es que la petición del magic link la aceptara. Acepta y aun así manda el
-link a la Site URL si el destino no está en la lista de permitidos — son dos
-validaciones distintas.
-
-## 4. La confirmación de email — CERRADO
-
-**Estado:** prendida. Verificado con `GET /auth/v1/settings` →
-`"mailer_autoconfirm": false`.
-
-La ventana de desarrollo en la que cualquiera con el correo podía entrar como
-esa persona está cerrada. Ver `confirmacion-email-off.md`.
-
-## 5. Encolar en el service worker es más caro de lo que parece
-
-**Estado:** anotado, no resuelto.
-
-Con la confirmación de email prendida, el enlace del correo llega al teléfono con
-un iPhone que a veces está sin señal. La nota de ese momento se va a perder si no
-hay red justo cuando toca confirmar. Vale la pena ver si la confirmación puede
-vivir en `/hoy` en vez de en `/login`.
-
-## 6. El rate limit de Supabase
-
-**Estado:** sigue. Un link por hora, y compartido entre las dos cuentas.
-
-Con la confirmación apagada no se nota porque no hay correo. Prendiéndola vuelve.
 La salida es SMTP propio (Resend o Brevo), que además es lo que corresponde en
-producción: el SMTP por defecto de Supabase es de desarrollo.
+producción: el SMTP por defecto de Supabase es de desarrollo. También hace falta
+para los recordatorios de F4, que salen de la nada en cuanto ese exista.
 
-## 7. El textarea pierde los saltos de línea en el HTML del servidor
+## 8. Subir `VERSION` en cada deploy de `sw.js`
 
-**Estado:** cerrado, era consecuencia del bug de la carpeta.
+**Estado:** proceso, sin forma de automatizar.
 
-Renderizado de `/mandado`, el `<textarea>` llegaba con 87 caracteres y **cero
-saltos de línea**: las seis líneas de la listavenues unidas con espacios.
+Un service worker con la misma versión no reinstala nada, y el iPhone sigue con el
+bundle viejo para siempre. No hay manera de que la app se entere sola.
 
-```
-repr: ☐ pan ☐ leche (descremada) ☐ huevos ☑ café • cosas del depot papel de cocina
-```
+## 9. Markdown: `**negrita**` y `*cursiva*` en línea
 
-La capa de display (`.capa`) sí renderizaba las seis líneas, así que a simple
-vista la pantalla estaba bien y el bug quedaba oculto: recién al editar se
-habría notado, cuando la lista entera se reemplaza por esa versión pegada.
+**Estado:** acordado, no empezado. Decidido que queda para más adelante.
 
-Causa: no era el `\n` en sí. El HTML bien formado, y la causa de fondo era que
-estaba mirando `/mamado?demo=1`, una ruta que el navegador servía desde una
-página de error con contenido de la página anterior. Al corregir la carpeta a
-`/mandado`, el textarea llegó con sus saltos de línea correctos.
+La versión buena es que **el texto sigue siendo el texto** y la capa de display
+interpreta las marcas, igual que ya hace con `☐` y `7:30am`. Cero cambios de
+schema y de sincronización.
 
-Vale la pena revisarlo si algún día el editor muestra una lista pegada en
-pantalla completa pero el contenido real está bien.
+El costo está en un detalle: la capa de display tiene que medir exactamente igual
+que la textarea, y una `**` dibujada en negrita mide distinto que una `**` en
+normal. Es la misma trampa del `--linea: 27.2px` absoluto, repetida por marca.
 
-## 8. Verificar el `sw.js` con el VERSION correcto en cada deploy
+Solo en línea y solo esos dos. Nada de listas, headers ni blocks.
 
-**Estado:** anotado, proceso.
+---
 
-Cambiar `VERSION` en `public/sw.js` es obligatorio en cada deploy. Si no, el
-navegador no reinstala nada y el iPhone sigue con el bundle viejo para siempre.
-No hay forma de que la app se dé cuenta sola.
+## Cerrado
+
+| Qué | Por qué |
+|---|---|
+| **Precache que guardaba el login** | `addAll` seguía el 307 a `/login`. Ahora el shell es solo manifest, íconos y chunks. Verificado en producción. |
+| **Clave compartida `/shell`** | Era "la última página que se vio": `/mandado` sin red devolvía una nota. Ahora cada ruta se cachea por su pathname, más los segmentos RSC. |
+| **404 al agregar la app a inicio** | `start_url` apuntaba a `/hoy`, borrada con las agendas. Ahora es `/`, y hay un test que resuelve la ruta contra el disco. |
+| **`/mandado` daba 404** | La carpeta se llamaba `mamado` y en App Router el nombre **es** la URL. Compilaba, los tests pasaban y la app abría. |
+| **Renombrar una agenda daba 42703** | El trigger `touch_updated_at` escribía en una columna que la tabla no tenía. |
+| **Crear agenda fallaba siempre** | Deadlock de RLS: la policy exige `es_dueno()`, que pregunta si la fila ya existe — que es lo que se está insertando. |
+| **`/agendas` daba 404** | Una policy consultaba `auth.users`, que el rol de policies no puede leer. |
+| **La confirmación de email estaba apagada** | `mailer_autoconfirm: false`. Era una ventana de desarrollo en internet. |
+| **El `localhost` en producción** | Nunca estuvo en el código. Venía de la Site URL de Supabase. |
+| **Cola offline rota** | El store usaba `keyPath: "clave"` y el objeto no la tenía: `put` fallaba en silencio y la cola quedaba siempre vacía. |
