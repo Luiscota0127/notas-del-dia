@@ -9,6 +9,24 @@ una lista que no distingue eso se vuelve una lista de intenciones.
 
 ---
 
+## 0. F4 está escrito pero no instalado
+
+**Estado:** código listo, sin ejecutar. Es lo único que bloquea una función.
+
+Hay que correr, en este orden:
+
+1. `supabase/migrations/0009_notificado-por-agenda.sql` en el SQL Editor
+2. `supabase functions deploy notify --no-verify-jwt`
+3. los secretos: `SMTP_URL`, `SMTP_TOKEN`, `EMAIL_FROM`, `NOTIFY_SECRET`, `APP_URL`
+4. `0003_cron.sql`, **corregido**: el `notify_secret` va con un secret propio y no
+   con la anon key
+
+Mientras tanto no llega ningún email. El toast del navegador sí funciona y está
+verificado.
+
+Paso a paso, con cómo probar que cada cosa funciona y qué significa cada error:
+[`docs/recordatorios.md`](recordatorios.md).
+
 ## 1. El flujo con dos cuentas nunca se ejecutó
 
 **Estado:** no verificado. Es lo más importante que queda.
@@ -83,16 +101,17 @@ El test de contraste **no está en verde a propósito**. Mientras la decisión e
 abierta tiene que seguir diciendo que el contraste no llega; un test que pasa
 porque bajé el umbral esconde el problema.
 
-## 5. El HTML cacheado lleva la nota adentro
+## 5. El HTML cacheado lleva la nota adentro — RESUELTO
 
-**Estado:** riesgo conocido, sin arreglo.
+**Estado:** cerrado. `cerrarSesion()` en `src/app/ajustes/acciones.ts`.
 
 `redPrimero` cachea cada navegación bajo su pathname, y esa respuesta lleva la
 nota ya renderizada con la sesión de quien la pidió. En un teléfono compartido, la
-segunda persona ve la nota de la primera hasta que IndexedDB la reemplaza.
+segunda persona veía la nota de la primera hasta que IndexedDB la reemplazaba.
 
-No hay logout en el código donde colgar un `caches.delete()`. Si algún día se
-agrega, ese es el punto donde el dato ajeno se va.
+Ahora el logout borra el HTML de navegación de Cache Storage y todo IndexedDB.
+**No** borra los chunks estáticos: son los mismos para cualquiera y tirarlos
+dejaría la PWA sin shell y sin poder abrir sin red.
 
 ## 6. Confirmar el email en un iPhone sin señal
 
@@ -103,39 +122,37 @@ red justo cuando toca confirmar. La nota de ese momento se pierde si no hay señ
 en ese instante. Vale la pena ver si la confirmación puede vivir en la agenda en
 vez de en `/login`.
 
-## 7. Rate limit de Supabase
+## 7. Rate limit de Supabase — RESUELTO
 
-**Estado:** sigue. Unas pocas emails por hora, **compartidas entre las dos
-cuentas**.
+**Estado:** cerrado. SMTP propio configurado.
 
-No se nota mucho mientras nadie más entre, pero cualquier persona que conozca el
-dominio puede pedir un link a ese correo y agotarlo. La clave de acceso frena la
-puerta de la UI, no la API de auth.
+Con el SMTP de desarrollo de Supabase el límite es de unas pocas horas por IP,
+compartidas entre las dos cuentas. No se nota mucho mientras nadie más entre,
+pero cualquier persona que conozca el dominio podía pedir un link a ese correo y
+agotarlo. La clave de acceso frenaba la puerta de la UI, no la API de auth.
 
-La salida es SMTP propio (Resend o Brevo), que además es lo que corresponde en
-producción: el SMTP por defecto de Supabase es de desarrollo. También hace falta
-para los recordatorios de F4, que salen de la nada en cuanto ese exista.
+Esto además destrabó el punto 1 y el punto 3, que estaban bloqueados por lo
+mismo. Y es lo que hace posible F4: sin SMTP propio, el canal de email —el único
+que llega con la app cerrada— no era confiable.
 
-## 8. Subir `VERSION` en cada deploy de `sw.js`
+## 8. Subir `VERSION` en cada deploy de `sw.js` — RESUELTO
 
-**Estado:** proceso, sin forma de automatizar.
+**Estado:** cerrado. La calcula `scripts/gen-sw.mjs` como un hash de `sw.src.js`.
 
-Un service worker con la misma versión no reinstala nada, y el iPhone sigue con el
-bundle viejo para siempre. No hay manera de que la app se entere sola.
+Era un string que alguien tenía que acordarse de subir, y el síntoma era
+invisible: la app abría bien, se veía bien, y el iPhone seguía con el bundle
+viejo para siempre. Ahora no hay nada que acordarse.
 
-## 9. Markdown: `**negrita**` y `*cursiva*` en línea
+## 9. Markdown: `**negrita**` y `*cursiva*` en línea — RESUELTO
 
-**Estado:** acordado, no empezado. Decidido que queda para más adelante.
+**Estado:** cerrado. `src/lib/markdown.ts`, con tests en `markdown.test.ts`.
 
-La versión buena es que **el texto sigue siendo el texto** y la capa de display
-interpreta las marcas, igual que ya hace con `☐` y `7:30am`. Cero cambios de
-schema y de sincronización.
+El texto sigue siendo el texto y la capa de display interpreta las marcas, igual
+que ya hace con `☐` y `7:30am`. Cero cambios de schema y de sincronización.
 
-El costo está en un detalle: la capa de display tiene que medir exactamente igual
-que la textarea, y una `**` dibujada en negrita mide distinto que una `**` en
-normal. Es la misma trampa del `--linea: 27.2px` absoluto, repetida por marca.
-
-Solo en línea y solo esos dos. Nada de listas, headers ni blocks.
+La trampa prevista —la negrita mide distinto en las dos capas— estaba resuelta:
+`--md-comp-negrita` mide el ancho en runtime y compensa por carácter. Es la misma
+trampa del `--linea: 27.2px` absoluto, repetida por marca.
 
 ---
 

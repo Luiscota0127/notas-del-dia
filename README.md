@@ -21,11 +21,15 @@ Vitest
 | Fase | Qué | Estado |
 |---|---|---|
 | F0 | Scaffolding, parser, tests de formato | Hecho |
-| F1 | Auth magic link, esquema con RLS, notas guardadas | Código listo, falta crear el proyecto en Supabase |
+| F1 | Auth magic link, esquema con RLS, notas guardadas | Hecho. **Dos cuentas sin probar** |
 | F2 | Editor de dos capas con checkboxes y estilos | Hecho y verificado |
-| F3 | Navegación día/semana, buscador, atajos | Pendiente |
-| F4 | Recordatorios: in-app, web, email | Pendiente |
-| F5 | PWA instalable, modo claro, offline | Pendiente |
+| F3 | Navegación día/semana, buscador, atajos, listas | Hecho |
+| F4 | Recordatorios: in-app, web, email | Código listo. **Falta instalar**, ver [`docs/recordatorios.md`](docs/recordatorios.md) |
+| F5 | PWA instalable, modo claro, offline | Hecho |
+
+Lo que falta no es código, es ejecución: ver el estado real y lo que sigue en
+[`docs/backlog.md`](docs/backlog.md). Lo más importante es probar el flujo con dos
+cuentas reales, que nunca se ejecutó.
 
 ## Ver el editor sin backend
 

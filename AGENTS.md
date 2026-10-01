@@ -91,12 +91,19 @@ npm run lint
 ## Estado
 
 - **F0** scaffolding, parser, `format.ts`. Hecho.
-- **F1** auth magic link, esquema con RLS, queries. Código listo; falta que el
-  usuario cree el proyecto de Supabase y aplique `0001_init.sql` +
-  `0002_realtime.sql` (el CLI local no funciona, ver README).
+- **F1** auth magic link, esquema con RLS, queries. Hecho. **Dos cuentas reales
+  sin probar** — es lo más grande que queda, ver `docs/backlog.md`.
 - **F2** editor de dos capas, checkboxes, contador del día. Hecho y verificado
   en navegador a 1280px y 390x844.
-- **F3** a **F5** pendientes. Ver `PLAN.md`.
+- **F3** navegación, buscador, atajos, listas de mandado. Hecho.
+- **F4** recordatorios. **Código listo, falta instalar.** La Edge Function existe,
+  el scheduler del cliente existe y el toast se verificó en navegador, pero sin
+  correr `0009`, `supabase functions deploy` y los secretos no llega ningún
+  email. Paso a paso en `docs/recordatorios.md`.
+- **F5** PWA instalable, modo claro, offline, ajustes. Hecho.
+
+Lo que falta por desarrollar es poco. Lo que falta por **ejecutar** es bastante, y
+está en `docs/backlog.md` con lo verificado y lo supuesto en cada entrada.
 
 ## Ver el editor sin backend
 
