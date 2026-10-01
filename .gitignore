@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# El service worker se genera desde sw.src.js con la VERSION resuelta.
+public/sw.js

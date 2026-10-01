@@ -2,6 +2,7 @@
 
 import { Fragment, type ReactNode } from "react";
 
+import { partirEnSegmentos, type Segmento } from "@/lib/markdown";
 import type { Task } from "@/lib/parse";
 
 /**
@@ -15,7 +16,35 @@ import type { Task } from "@/lib/parse";
  * `font-family`, `font-size`, `font-weight` y `letter-spacing` tienen que ser
  * IDÉNTICOS a los de la textarea. El único atributo que puede cambiar es
  * `color`. Cualquier otra cosa desplaza el texto y el caret deja de calzar.
+ *
+ * Hay dos excepciones, y las dos son deliberadas:
+ *
+ *   - los responsables van en otro color, que no desplaza nada;
+ *   - `**negrita**` y `*cursiva*` cambian el peso y el estilo, que sí desplazan.
+ *
+ * La segunda es cara y por eso queda escrita acá: la negrita mide 7.6% más que
+ * la normal en 17px —14px de desvío en una frase de 23 caracteres—, así que sin
+ * compensar, todo lo que sigue en la línea queda corrido, y con él el caret. Los
+ * tramos con estilo llevan `letter-spacing` negativo, con el valor medido en
+ * runtime y puesto en `--md-comp-negrita`. Si ese valor no está, vale 0 y el
+ * desvío se ve: mejor visible que inventado.
+ *
+ * El texto que se guarda sigue siendo `**negrita**`. Esto no toca el schema, ni
+ * el cache, ni Realtime.
  */
+
+function claseDe(tipo: Segmento["tipo"]): string {
+  switch (tipo) {
+    case "marca":
+      return "md-marca";
+    case "negrita":
+      return "md-negrita";
+    case "cursiva":
+      return "md-cursiva";
+    default:
+      return "";
+  }
+}
 
 function Cuerpo({ task }: { task: Task }) {
   const partes: ReactNode[] = [];
@@ -35,26 +64,40 @@ function Cuerpo({ task }: { task: Task }) {
   const texto = task.body;
   if (texto === "") return <Fragment>{partes}</Fragment>;
 
-  // Los paréntesis que son responsables van en otro color. Mismo tamaño, otra
-  // tinta: el color no desplaza, el font-weight sí.
-  if (task.assignees.length === 0) {
-    partes.push(texto);
-    return <Fragment>{partes}</Fragment>;
-  }
+  // Primero se parte en segmentos de estilo, y DENTRO de cada segmento de texto
+  // se buscan los paréntesis de los responsables. Al revés no se puede: un
+  // responsable puede caer dentro de un tramo en negrita.
+  for (const seg of partirEnSegmentos(texto)) {
+    if (seg.tipo !== "texto") {
+      partes.push(
+        <span key={key++} className={claseDe(seg.tipo)}>
+          {seg.valor}
+        </span>,
+      );
+      continue;
+    }
 
-  let cursor = 0;
-  for (const coincidencia of texto.matchAll(/\(([^()]*)\)/g)) {
-    const inicio = coincidencia.index!;
-    const fin = inicio + coincidencia[0].length;
-    partes.push(texto.slice(cursor, inicio));
-    partes.push(
-      <span key={key++} className="quien">
-        {coincidencia[0]}
-      </span>,
-    );
-    cursor = fin;
+    if (task.assignees.length === 0) {
+      // Sin responsables no hay nada que resaltar: se deja el texto pelado para
+      // no llenarlo de <span> innecesarios.
+      if (seg.valor !== "") partes.push(seg.valor);
+      continue;
+    }
+
+    let cursor = 0;
+    for (const coincidencia of seg.valor.matchAll(/\(([^()]*)\)/g)) {
+      const ini = coincidencia.index!;
+      const fin = ini + coincidencia[0].length;
+      if (ini > cursor) partes.push(seg.valor.slice(cursor, ini));
+      partes.push(
+        <span key={key++} className="quien">
+          {coincidencia[0]}
+        </span>,
+      );
+      cursor = fin;
+    }
+    if (cursor < seg.valor.length) partes.push(seg.valor.slice(cursor));
   }
-  partes.push(texto.slice(cursor));
 
   return <Fragment>{partes}</Fragment>;
 }

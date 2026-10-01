@@ -15,7 +15,17 @@
  * error clásico y no se ve en desarrollo.
  */
 
-const VERSION = "v3";
+/*
+ * VERSION: la calcula `scripts/gen-sw.mjs` como un hash de este archivo. Está en
+ * blanco acá a propósito — el generador lo completa — y `public/sw.js` queda
+ * ignorado por git.
+ *
+ * Antes era un string que alguien tenía que acordarse de subir. Un service
+ * worker con la misma versión no reinstala nada: la app abre, se ve bien, y el
+ * iPhone sigue con el bundle viejo para siempre. Es un bug invisible que
+ * dependía de la memoria.
+ */
+const VERSION = "";
 const CACHE = `notas-shell-${VERSION}`;
 
 /* El shell. SOLO archivos sin sesión.

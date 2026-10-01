@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { getProfile, requireUser } from "@/lib/db/queries";
 import { ToggleTema } from "@/app/ajustes/ToggleTema";
-import { guardarAvisos, guardarNombre } from "./acciones";
+import { cerrarSesion, guardarAvisos, guardarNombre } from "./acciones";
 
 /**
  * Ajustes personales. Son de la persona, no de la agenda: no cambian al cambiar
@@ -73,6 +73,19 @@ export default async function AjustesPage() {
       <section className="mb-8">
         <p className="text-sm text-dim mb-2">Tema</p>
         <ToggleTema />
+      </section>
+
+      <section className="pt-6 border-t border-line">
+        <p className="text-sm text-dim mb-2">Cerrar sesión</p>
+        <form action={cerrarSesion}>
+          <button type="submit" className="btn-ghost text-sm">
+            Salir de este teléfono
+          </button>
+        </form>
+        <p className="text-dim text-sm mt-2">
+          Borra del teléfono las notas y las páginas que quedaron guardadas. Lo que
+          está en la nube no se toca.
+        </p>
       </section>
     </main>
   );

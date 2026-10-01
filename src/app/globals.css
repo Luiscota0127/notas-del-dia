@@ -15,6 +15,16 @@
   --color-accent: #f59e0b;
   --color-line: #2e2e2e;
 
+  /* El borde de los CONTROLES, separado del decorativo.
+     `--color-line` separaba ítems de lista y además dibujaba el borde de los
+     inputs y de los botones fantasma, que son dos cosas con requisitos
+     distintos: WCAG 1.4.11 pide 3:1 solo para el borde que identifica un
+     control. Medido, `--color-line` daba 1.39:1 contra el fondo de este tema.
+
+     Los separadores se quedan sutiles a propósito —es el aspecto tipo Notion que
+     fija visual.md— y los controles usan este. `#666666` da 3.29:1. */
+  --color-border-control: #666666;
+
   /* El texto del botón NO puede ser un color fijo: el acento cambia con el tema
      y los dos necesitan un texto distinto. Con `#111111` fijo, el botón del
      tema claro daba 3.76:1 sobre su acento y queda por debajo del 4.5:1 de AA.
@@ -40,6 +50,9 @@
   --color-dim: #6b6b70;
   --color-accent: #b45309;
   --color-line: #d4d4d8;
+  /* `#8a8a8a` da 3.45:1 contra el blanco. Con `--color-line` (#d4d4d8) daba
+     1.48:1 y el campo de login quedaba casi sin contorno. */
+  --color-border-control: #8a8a8a;
   /* El acento claro es un naranja oscuro, así que el texto del botón tiene que
      ser blanco: da 5.02:1. Con el #111111 del tema oscuro daría 3.76:1. */
   --color-btn-fg: #ffffff;
@@ -84,7 +97,8 @@ body {
 
 @utility input {
   background: var(--color-elevated);
-  border: 1px solid var(--color-line);
+  /* Borde de control, no decorativo: este sí tiene que ser visible. */
+  border: 1px solid var(--color-border-control);
   border-radius: 4px;
   color: var(--color-fg);
   padding: 0.625rem 0.75rem;
@@ -102,7 +116,8 @@ body {
 
 @utility btn-ghost {
   background: transparent;
-  border: 1px solid var(--color-line);
+  /* Es un botón: su contorno es lo que lo identifica. */
+  border: 1px solid var(--color-border-control);
   color: var(--color-fg);
   border-radius: 4px;
   padding: 0.5rem 0.75rem;

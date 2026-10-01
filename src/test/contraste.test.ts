@@ -99,38 +99,50 @@ const PAREJAS_TEXTO: Array<[string, string, string, number]> = [
 ];
 
 /**
- * `--color-line` NO llega a 3:1 y eso está a decisión, no olvidado.
+ * Dos bordes distintos, con requisitos distintos.
  *
- * Medido: 1.39:1 en oscuro y 1.48:1 en claro. WCAG 1.4.11 pide 3:1 solo para
- * el borde que identifica un CONTROL, no para los separadores decorativos. Y
- * `--color-line` está haciendo las dos cosas: separa items de lista y a la vez
- * dibuja el borde de los inputs y de los botones fantasma.
+ * `--color-line` es decorativo: separa ítems de lista. No tiene requisito de
+ * contraste —WCAG 1.4.11 no aplica a algo que no identifica un control— pero sí
+ * tiene que verse, o no decora nada.
  *
- * Los valores que sí cumplirían, contra el fondo de cada tema:
+ * `--color-border-control` dibuja el borde de los inputs y de los botones
+ * fantasma. Ahí el borde ES lo que identifica el control, así que sí pide 3:1.
  *
- *   claro  #d4d4d8 → #949494 (3.03:1)  o  #8a8a8a (3.45:1)
- *   oscuro #2e2e2e → #5e5e5e (2.91:1)  o  #666666 (3.29:1)
- *
- * Subir el token entero haría visibles todos los separadores de la app y la
- * alejaría del aspecto tipo Notion que fija visual.md. La salida probable es
- * partirlo en dos: `--color-line` para decorar y `--color-border-control` para
- * los controles. Es una decisión de diseño, no un bug, y está anotada en
- * docs/backlog.md.
- *
- * El test NO se pone en verde a propósito: mientras la decisión esté abierta,
- * tiene que seguir diciendo que el contraste no llega. Un test que pasa porque
- * bajé el umbral esconde el problema.
+ * Antes era un solo token haciendo las dos cosas, y el borde de control daba
+ * 1.39:1 en oscuro y 1.48:1 en claro.
  */
 describe.each([
   ["oscuro", oscuro],
   ["claro", claro],
 ])("bordes en %s", (_nombre, t) => {
-  it("el borde decorativo se ve, aunque no llegue a 3:1", () => {
+  it("el decorativo se ve, aunque no llegue a 3:1", () => {
     const r = contraste(t.line, t.bg);
     expect(r).not.toBeNull();
     // 1.2:1 es el piso de "se distingue del fondo". Por debajo, un separador
-    // es invisible y ni siquiera sirve para decorar.
-    expect(r, `el borde da ${r?.toFixed(2)}:1 y ni siquiera se ve`).toBeGreaterThanOrEqual(1.2);
+    // no separa nada.
+    expect(r, `el borde decorativo da ${r?.toFixed(2)}:1 y ni siquiera se ve`).toBeGreaterThanOrEqual(1.2);
+  });
+
+  it("el de los controles llega a 3:1", () => {
+    const r = contraste(t["border-control"], t.bg);
+    expect(r, `falta el token --color-border-control`).not.toBeNull();
+    expect(
+      r,
+      `el borde de control (${t["border-control"]}) da ${r?.toFixed(2)}:1 sobre ${t.bg} y necesita 3:1`,
+    ).toBeGreaterThanOrEqual(UMBRAL.noTexto);
+  });
+});
+
+describe("el borde de control se usa donde corresponde", () => {
+  const cssCompleto = css;
+
+  it("los inputs y los botones fantasma lo usan", () => {
+    // Si alguien vuelve a apuntarlos al token decorativo, el control queda
+    // invisible otra vez y este test no lo va a notar.
+    const input = cssCompleto.slice(cssCompleto.indexOf("@utility input"));
+    const ghost = cssCompleto.slice(cssCompleto.indexOf("@utility btn-ghost"));
+    expect(input).toContain("border: 1px solid var(--color-border-control)");
+    expect(ghost).toContain("border: 1px solid var(--color-border-control)");
   });
 });
 

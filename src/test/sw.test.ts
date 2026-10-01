@@ -11,16 +11,48 @@ import { fileURLToPath } from "node:url";
  */
 
 const raiz = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const sw = readFileSync(join(raiz, "public", "sw.js"), "utf8");
+
+// El archivo se genera desde sw.src.js, con la VERSION ya resuelta. Se genera
+// acá para que el test no dependa de que alguien corriera el build antes.
+const { generar, versionar } = await import("../../scripts/gen-sw.mjs");
+const sw = generar();
 
 describe("el service worker está versionado", () => {
-  it("tiene una constante VERSION", () => {
-    expect(sw).toMatch(/const VERSION\s*=\s*"v\d+"/);
+  it("tiene una constante VERSION con un valor", () => {
+    expect(sw).toMatch(/const VERSION\s*=\s*"v[0-9a-z]+"/);
+  });
+
+  it("la VERSION sale del contenido, no de que alguien se acuerde", () => {
+    // El bug que esto evita: una VERSION escrita a mano que alguien no sube. La
+    // app sigue abriendo con el bundle viejo y nadie ve nada raro.
+    expect(sw).not.toMatch(/const VERSION\s*=\s*"v3"/);
+    expect(sw).toMatch(/const VERSION = "v[a-z0-9]{6,}"/);
+  });
+
+  it("cambia la VERSION si cambia una coma del archivo", () => {
+    const a = versionar('const VERSION = "";\nconst X = 1;');
+    const b = versionar('const VERSION = "";\nconst X = 2;');
+    expect(a).not.toBe(b);
+  });
+
+  it("es estable: el mismo contenido da la misma VERSION", () => {
+    // Si no fuera estable, cada build borraría el cache del cliente y la app
+    // offline se rompería en cada deploy.
+    const a = versionar('const VERSION = "";\nconst X = 1;');
+    const b = versionar('const VERSION = "";\nconst X = 1;');
+    expect(a).toBe(b);
+  });
+
+  it("el archivo versionado se genera antes del build, no se sube a git", () => {
+    const gitignore = readFileSync(join(raiz, ".gitignore"), "utf8");
+    expect(gitignore).toContain("public/sw.js");
+    // El fuente sí se versiona: es el que tiene el código.
+    expect(readFileSync(join(raiz, "sw.src.js"), "utf8")).toContain("const VERSION");
   });
 
   it("el nombre del cache incluye la version", () => {
     // Sin esto, un deploy nuevo no borra el cache viejo y la app queda
-    // sirviendo un bundle anterior para siempre. Es el error clásico.
+    // sirviendo un bundle anterior para siempre.
     expect(sw).toMatch(/CACHE\s*=\s*`notas-shell-\$\{VERSION\}`/);
   });
 

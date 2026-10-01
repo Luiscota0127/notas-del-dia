@@ -224,6 +224,48 @@
   border-radius: 0;
 }
 
+/* Markdown en línea ---------------------------------------------------------------- */
+/* `**negrita**` y `*cursiva*`. El texto que se guarda sigue siendo el markdown.
+
+   Lo difícil es que las dos capas midan igual. La textarea muestra `**negrita**`
+   en fuente NORMAL; la de display la muestra en negrita, y la negrita mide 7.6%
+   más en 17px. Sin `--comp` el texto después de un tramo en negrita queda
+   corrido, y con él el caret.
+
+   `--comp` lo mide el editor en runtime y es un ancho en px que se le resta por
+   carácter, así que el tramo con estilo termina ocupando lo mismo que en la
+   textarea. Si algún día no se mide, vale 0 y se ve el desvío: es visible, que
+   es mejor que un valor inventado que miente.
+
+   El marcador va con `visibility: hidden` y en fuente normal, igual que
+   `.prefijo`: oculto mide lo que mide en la textarea, que es lo que importa. */
+.md-marca {
+  visibility: hidden;
+  font-weight: 400;
+  font-style: normal;
+  letter-spacing: 0;
+}
+
+.md-negrita {
+  font-weight: 700;
+  letter-spacing: var(--md-comp-negrita, 0px);
+}
+
+.md-cursiva {
+  font-style: italic;
+  letter-spacing: var(--md-comp-cursiva, 0px);
+}
+
+/* Con el estilo aplicado no se puede usar `display: inline`, porque cambiar el
+   modelo de caja alteraría también la línea base. `inline-block` mantiene el
+   flujo de la línea pero en iOS sube un poco la altura, y la altura la fija
+   `--linea` en el padre. */
+.md-negrita,
+.md-cursiva {
+  display: inline-block;
+  vertical-align: baseline;
+}
+
 .caja-marca {
   display: none;
 }

@@ -134,6 +134,72 @@ export function NoteEditor({
     };
   }, [body]);
 
+  // --- compensación de ancho del markdown ---------------------------------
+  // La negrita mide más que la normal (7.6% en 17px, medido) y la cursiva también.
+  // Sin corregirlo, todo lo que viene después de un tramo con estilo queda
+  // corrido en la capa de display, y el caret con él.
+  //
+  // Se mide acá y no con una constante en el CSS porque depende de la fuente del
+  // sistema, que es distinta en cada dispositivo. Un 7.6% aproximado no alcanza:
+  // a lo largo de una línea el error se acumula y el caret vuelve a irse.
+  useEffect(() => {
+    const medir = () => {
+      const raiz = document.documentElement;
+      const muestra = document.createElement("span");
+      muestra.style.position = "absolute";
+      muestra.style.visibility = "hidden";
+      muestra.style.whiteSpace = "pre";
+      document.body.appendChild(muestra);
+
+      // Se mide con la fuente real de la capa de display, no con la de la
+      // textarea: si divergieran, la compensación sería de otro texto.
+      const capa = raiz.querySelector<HTMLElement>(".capa .texto");
+      if (!capa) {
+        muestra.remove();
+        return;
+      }
+      muestra.style.font = getComputedStyle(capa).font;
+
+      const texto = "mnñáei Measure ";
+      const normal = () => {
+        muestra.style.fontWeight = "400";
+        muestra.style.fontStyle = "normal";
+        muestra.style.letterSpacing = "0px";
+        muestra.textContent = texto;
+        return muestra.getBoundingClientRect().width;
+      };
+
+      const base = normal();
+      const porChar = (ancho: number) => (base - ancho) / texto.length;
+
+      muestra.style.fontWeight = "700";
+      muestra.style.fontStyle = "normal";
+      muestra.textContent = texto;
+      raiz.style.setProperty(
+        "--md-comp-negrita",
+        `${porChar(muestra.getBoundingClientRect().width).toFixed(4)}px`,
+      );
+
+      muestra.style.fontWeight = "400";
+      muestra.style.fontStyle = "italic";
+      muestra.textContent = texto;
+      raiz.style.setProperty(
+        "--md-comp-cursiva",
+        `${porChar(muestra.getBoundingClientRect().width).toFixed(4)}px`,
+      );
+
+      muestra.remove();
+    };
+
+    medir();
+    const t = setTimeout(medir, 120);
+    window.addEventListener("resize", medir);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("resize", medir);
+    };
+  }, []);
+
   // --- teclado en iOS ----------------------------------------------------
   // Con el teclado abierto, 100vh es el alto del layout, no el visible. Sin
   // esto el área de escritura queda debajo del teclado.

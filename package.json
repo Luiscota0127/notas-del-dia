@@ -3,14 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3005",
-    "build": "next build",
+    "dev": "node scripts/gen-sw.mjs && next dev -p 3005",
+    "build": "node scripts/gen-sw.mjs && next build",
     "start": "next start -p 3005",
     "lint": "eslint",
-    "test": "vitest run",
+    "test": "node scripts/gen-sw.mjs && vitest run",
     "test:watch": "vitest",
     "iconos": "node scripts/gen-iconos.mjs",
-    "iconos:verificar": "node scripts/verificar-iconos.mjs"
+    "iconos:verificar": "node scripts/verificar-iconos.mjs",
+    "sw": "node scripts/gen-sw.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",
