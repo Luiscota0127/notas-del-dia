@@ -177,6 +177,16 @@ export type Entrada = {
   body: string;
   /** Para ordenar y descartar lo viejo. */
   cuando: number;
+  /**
+   * La clave del store.
+   *
+   * El store `cola` se crea con `keyPath: "clave"`, y con keyPath IndexedDB
+   * IGNORA la clave que se le pasa como segundo argumento: la saca del objeto.
+   * Sin esta propiedad, `put` tira DataError y la escritura se pierde. Pasaba
+   * con un `catch {}` encima, así que la cola se llenaba a la nada: el usuario
+   * veía "En el teléfono" y la nota no se subía nunca, sin error en ningún lado.
+   */
+  clave: string;
 };
 
 /**
@@ -185,7 +195,7 @@ export type Entrada = {
  * Con `agendaId` adelante porque "nota:2026-09-01" no dice en qué agenda: la
  * misma fecha en dos agendas son dos notas distintas y no se pisan entre sí.
  */
-function claveDe(e: Entrada): string {
+function claveDe(e: Pick<Entrada, "tipo" | "agendaId" | "fecha">): string {
   return e.tipo === "nota" ? `nota:${e.agendaId}:${e.fecha}` : `lista:${e.agendaId}`;
 }
 
@@ -204,15 +214,17 @@ export function claveEntrada(
  * Una sola entrada por clave: si escribís cinco veces en la misma nota sin red,
  * se sube la última, no las cinco. Es last-write-wins y es lo correcto.
  */
-export async function encolar(e: Omit<Entrada, "cuando">): Promise<void> {
+export async function encolar(e: Omit<Entrada, "cuando" | "clave">): Promise<void> {
   if (!hayCache()) return;
   try {
     const db = await abrir();
-    const entrada: Entrada = { ...e, cuando: Date.now() };
-    await tx(db, STORE_COLA, "readwrite", (s) => s.put(entrada, claveDe(entrada)));
+    const entrada: Entrada = { ...e, cuando: Date.now(), clave: claveDe(e) };
+    // Sin clave explícita: el store tiene keyPath y la saca del objeto.
+    await tx(db, STORE_COLA, "readwrite", (s) => s.put(entrada));
     db.close();
-  } catch {
+  } catch (e) {
     // idem
+    console.warn("cache: no se pudo encolar", e);
   }
 }
 

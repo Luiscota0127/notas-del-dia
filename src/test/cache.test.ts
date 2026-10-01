@@ -15,6 +15,8 @@ type Registro = { clave: string; valor: unknown };
 /** Implementación en memoria de lo que el cache usa. */
 function crearIndexedDB() {
   const datos = new Map<string, Map<string, unknown>>();
+  /** Los `keyPath` con los que se crearon los stores, como el IndexedDB real. */
+  const keyPaths = new Map<string, string | undefined>();
 
   const abrir = () => ({
     onsuccess: null as null | (() => void),
@@ -29,7 +31,7 @@ function crearIndexedDB() {
       onsuccess: null,
       onerror: null,
       result: resultado,
-      error: null,
+      error: falla ? new Error("DataError: el objeto no tiene la clave del keyPath") : null,
     };
     // Los handlers se asignan después de crear el request, así que se dispara
     // en un microtask: el código del cache ya terminó de configurarlos.
@@ -46,16 +48,33 @@ function crearIndexedDB() {
       const req = abrir();
       const db = {
         objectStoreNames: { contains: () => true },
-        createObjectStore: () => undefined,
+        createObjectStore: (nombre: string, opts?: { keyPath?: string }) => {
+          keyPaths.set(nombre, opts?.keyPath);
+          return undefined;
+        },
         transaction: () => ({
           objectStore: (nombre: string) => {
             if (!datos.has(nombre)) datos.set(nombre, new Map());
             const m = datos.get(nombre)!;
+            // Con `keyPath`, IndexedDB saca la clave DEL OBJETO e ignora la que
+            // se le pasa aparte. Si el objeto no la tiene, es DataError.
+            //
+            // El stub lo respetaba antes de este cambio y los tests pasaban con
+            // la cola rota: `encolar` mandaba un objeto sin `clave`, el put
+            // fallaba en silencio, y la prueba "una nota encolada cinco veces
+            // queda una" pasaba porque el stub guardaba la clave explícita.
+            const keyPath = keyPaths.get(nombre);
             return {
               get: (k: string) => peticion(m.get(k)),
               put: (v: unknown, k?: string) => {
-                m.set(k ?? (v as Registro).clave, v);
-                return peticion(k ?? (v as Registro).clave);
+                const clave = keyPath
+                  ? (v as Record<string, unknown>)[keyPath]
+                  : (k ?? (v as Registro).clave);
+                if (keyPath && (clave === undefined || clave === null)) {
+                  return peticion(undefined, true);
+                }
+                m.set(String(clave), v);
+                return peticion(String(clave));
               },
               delete: (k: string) => {
                 m.delete(k);
@@ -166,6 +185,32 @@ describe("el cache local", () => {
       expect(cola).toHaveLength(1);
       expect(cola[0].body).toBe("x");
       expect(cola[0].agendaId).toBe(A);
+    });
+
+    /**
+     * El store `cola` se crea con `keyPath: "clave"`. Con keyPath, IndexedDB
+     * saca la clave del OBJETO e ignora la que se le pasa aparte: si el objeto
+     * no la tiene, `put` es DataError.
+     *
+     * Pasaba: `encolar` mandaba un objeto sin `clave`, el put fallaba, y el
+     * `catch {}` se lo tragaba. La cola quedaba siempre vacía — el usuario veía
+     * "En el teléfono" y la nota no se subía nunca, sin error en ningún lado.
+     *
+     * Este test fallaba antes del fix solo con hacer que el stub respetara el
+     * keyPath. Ese stub lo ignoraba, que es por lo que los tests anteriores
+     * pasaban con la cola rota.
+     */
+    it("cada entrada lleva su clave, porque el store usa keyPath", async () => {
+      await cache.encolar(nota(A, "2026-09-01", "x"));
+      const cola = await cache.leerCola();
+      expect(cola[0].clave).toBe(`nota:${A}:2026-09-01`);
+    });
+
+    it("la cola no queda vacía después de encolar", async () => {
+      // La aserción más tonta del archivo, y la que más bugs atrapó: si el put
+      // falla, leerCola devuelve [] y todo lo demás parece bien.
+      await cache.encolar(nota(A, "2026-09-29", "lo que sea"));
+      expect(await cache.leerCola()).not.toHaveLength(0);
     });
 
     it("una nota encolada cinco veces queda una", async () => {

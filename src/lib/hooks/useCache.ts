@@ -50,15 +50,25 @@ export function useVaciarCola(online: boolean) {
     try {
       const cola = await leerCola();
       for (const e of cola) {
+        // Si algo falla, se deja la entrada en la cola y se corta el recorrido:
+        // el orden importa y seguir subiría cosas viejo por encima de lo nuevo.
+        let ok = false;
         try {
-          if (e.tipo === "nota") await guardarNota(e.agendaId, e.fecha, e.body);
-          else await guardarLista(e.agendaId, e.body);
-          await sacarDeLaCola(claveEntrada(e.tipo, e.agendaId, e.fecha));
+          const r =
+            e.tipo === "nota"
+              ? await guardarNota(e.agendaId, e.fecha, e.body)
+              : await guardarLista(e.agendaId, e.body);
+          // La server action NO lanza cuando falla: devuelve { guardado: false }.
+          // Mirar solo el throw hacía que esto sacara de la cola una nota que
+          // nunca se guardó — que es perderla sin dejar rastro. Con la sesión
+          // vencida pasa siempre, y la nota desaparece sola.
+          ok = r.guardado;
         } catch {
-          // Sigue sin red. Se corta acá y se reintenta en el próximo online.
-          Corriendo.current = false;
-          return;
+          ok = false;
         }
+
+        if (!ok) return;
+        await sacarDeLaCola(claveEntrada(e.tipo, e.agendaId, e.fecha));
       }
     } finally {
       Corriendo.current = false;
@@ -67,11 +77,22 @@ export function useVaciarCola(online: boolean) {
 
   useEffect(() => {
     if (!online) return;
-    // Un toque al volver, y otro a los 5 s: el evento `online` salta cuando la
-    // red "vuelve" pero el servidor todavía no responde.
+
     vaciar();
     const id = setTimeout(vaciar, 5000);
     return () => clearTimeout(id);
+  }, [online, vaciar]);
+
+  // Desbloquear el teléfono es el caso más común de "volvió la red" con una PWA:
+  // saliste del subte, la app estaba en background. Y el evento `online` a veces
+  // no salta, porque para el navegador la red nunca llegó a caerse.
+  useEffect(() => {
+    if (!online) return;
+    const alVolver = () => {
+      if (document.visibilityState === "visible") vaciar();
+    };
+    document.addEventListener("visibilitychange", alVolver);
+    return () => document.removeEventListener("visibilitychange", alVolver);
   }, [online, vaciar]);
 
   return vaciar;
@@ -196,14 +217,16 @@ export function useNota(agendaId: string, fecha: string, inicialDelServidor: str
         } else {
           setEstado("error");
         }
-      } catch {
+      } catch (e) {
         // La llamada ni siquiera llegó al servidor: red caída de verdad.
         await encolar({ tipo: "nota", agendaId, fecha, body });
         setEstado("sin-conexion");
       }
     }, 800);
 
-    return () => clearTimeout(timer.current);
+    return () => {
+      clearTimeout(timer.current);
+    };
   }, [body, agendaId, fecha, online]);
 
   return { body, setBody, estado, ajeno, tomarAjeno, descartarAjeno };
