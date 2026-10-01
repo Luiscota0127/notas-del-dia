@@ -103,15 +103,50 @@ porque bajé el umbral esconde el problema.
 
 ## 5. El HTML cacheado lleva la nota adentro — RESUELTO
 
-**Estado:** cerrado. `cerrarSesion()` en `src/app/ajustes/acciones.ts`.
+**Estado:** cerrado y **verificado en navegador**.
 
 `redPrimero` cachea cada navegación bajo su pathname, y esa respuesta lleva la
 nota ya renderizada con la sesión de quien la pidió. En un teléfono compartido, la
 segunda persona veía la nota de la primera hasta que IndexedDB la reemplazaba.
 
-Ahora el logout borra el HTML de navegación de Cache Storage y todo IndexedDB.
-**No** borra los chunks estáticos: son los mismos para cualquiera y tirarlos
-dejaría la PWA sin shell y sin poder abrir sin red.
+### El bug de verdad
+
+El borrado estaba escrito en `cerrarSesion()`, que tiene `"use server"` arriba:
+**corre en el servidor**. En el servidor no existen `caches`, `indexedDB` ni
+`localStorage`, así que los dos bloques de `borrarTodoLocal()` no hacían nada.
+Estaban envueltos en try/catch, así que el logout "salía bien" —la sesión se
+cerraba, el redirect pasaba— y el teléfono se quedaba con todo.
+
+Escribí el backlog como resuelto leyendo el código, sin ejecutarlo. El código
+parecía hacer lo correcto y no lo hacía. La lección está en el propio archivo de
+tests: `src/test/logout.test.ts` falla si alguien vuelve a poner el borrado
+dentro de la Server Action.
+
+Había un segundo problema: aunque el borrado funcionara, se deshacía solo. El
+service worker seguía registrado y la navegación siguiente volvía a cachear el
+HTML. Por eso ahora hay un mensaje `purgar-datos` que el SW atiende.
+
+### Qué se borra y qué no
+
+El HTML de navegación y los payloads RSC —los dos llevan la nota—. **No** los
+chunks de JS y CSS, los íconos ni el manifest: son los mismos para cualquiera y
+no llevan datos de nadie. Tirarlos dejaría la PWA sin poder abrir sin red, que es
+peor que el problema que se busca resolver.
+
+### Verificado
+
+Con un service worker real y el cache real, mandando el mensaje de verdad:
+
+| Entrada | Resultado |
+|---|---|
+| `/casa/2026-09-01` (HTML con la nota) | **borrada** |
+| `/__rsc__/casa/2026-09-01` (RSC con la nota) | **borrada** |
+| `/_next/static/chunk.js` | conservada |
+| íconos y manifest | conservados |
+
+Lo que NO se pudo verificar: el recorrido completo con dos sesiones reales. Lo que
+se verificó es que el mensaje purga lo que tiene que purgar y conserva lo que tiene
+que conservar.
 
 ## 6. Confirmar el email en un iPhone sin señal
 

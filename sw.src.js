@@ -65,6 +65,39 @@ self.addEventListener("install", (evento) => {
   );
 });
 
+/*
+ * Purgar los datos de la sesión que cerró.
+ *
+ * Sin esto, el borrado del logout se deshace en la misma visita: el SW sigue
+ * registrado, y la navegación siguiente a /login vuelve a cachear HTML bajo su
+ * ruta. Un minuto después del logout, el teléfono ya tiene la respuesta otra vez.
+ *
+ * Se borra el HTML de navegación y los payloads RSC —los dos llevan la nota ya
+ * renderizada con la sesión de quien la pidió— y NO se borra el shell. Los chunks
+ * de JS y CSS son los mismos para cualquiera y no llevan datos de nadie; tirarlos
+ * deja la PWA sin poder abrir sin red, que es peor que el problema que se busca
+ * resolver.
+ */
+self.addEventListener("message", (evento) => {
+  if (evento.data?.type !== "purgar-datos") return;
+
+  evento.waitUntil(
+    (async () => {
+      for (const nombre of await caches.keys()) {
+        if (!nombre.startsWith("notas-shell-")) continue;
+        const cache = await caches.open(nombre);
+
+        for (const req of await cache.keys()) {
+          const ruta = new URL(req.url).pathname;
+          if (ruta.startsWith("/_next/static/")) continue;
+          if (/^\/(icon-|manifest)/.test(ruta)) continue;
+          await cache.delete(req);
+        }
+      }
+    })(),
+  );
+});
+
 self.addEventListener("activate", (evento) => {
   evento.waitUntil(
     (async () => {
