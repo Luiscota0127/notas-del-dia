@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 
 import { ThemeScript } from "./ajustes/ToggleTema";
+import { AvisoInstalar } from "@/components/AvisoInstalar";
 import { BandaConexion } from "@/components/BandaConexion";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import "./globals.css";
@@ -49,6 +50,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ServiceWorkerRegister />
         {/* Solo aparece sin red. Vacía la cola cuando vuelve. */}
         <BandaConexion />
+        {/* Solo en Safari iOS, y una sola vez. No renderiza nada en el resto. */}
+        <AvisoInstalar />
       </body>
     </html>
   );
