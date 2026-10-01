@@ -43,8 +43,16 @@ select cron.schedule(
 -- Cómo configurar (SQL Editor, una vez):
 --
 --   alter database postgres set "app.settings.notify_url"    = 'https://<ref>.supabase.co/functions/v1/notify';
---   alter database postgres set "app.settings.notify_secret" = '<ANON_KEY>';
+--   alter database postgres set "app.settings.notify_secret" = '<NOTIFY_SECRET>';
 --
--- La Function declara verify_jwt = false y valida el secret por su cuenta, para
--- poder usar la anon key (que se puede filtrar desde el navegador) en vez de la
--- service_role.
+-- <NOTIFY_SECRET> es un string largo y propio, NO la anon key. Antes este
+-- comentario decía <ANON_KEY> y la Function comparaba eso: la anon key se puede
+-- leer desde el bundle del navegador, así que cualquiera que abriera las devtools
+-- podía disparar la Function. El secret propio se genera con
+-- `openssl rand -hex 32` y se pone también en los secretos de la Function.
+--
+-- La Function declara verify_jwt = false porque el webhook llega desde pg_cron y
+-- no como un cronId de @supabase: no hay a qué validarlo. Valida este secret por
+-- su cuenta, en tiempo constante.
+--
+-- Paso a paso en docs/recordatorios.md.

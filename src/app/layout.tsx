@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { ThemeScript } from "./ajustes/ToggleTema";
 import { AvisoInstalar } from "@/components/AvisoInstalar";
 import { BandaConexion } from "@/components/BandaConexion";
+import { BorrarLocal } from "@/components/BorrarLocal";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import "./globals.css";
 
@@ -46,6 +47,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         }}
       >
         {children}
+        {/* Borra Cache Storage e IndexedDB después de cerrar sesión. Va en el
+            layout y no en Ajustes porque después del logout ya no hay sesión, y
+            `/ajustes` rebotaría a /login antes de montar nada. No renderiza nada. */}
+        <BorrarLocal />
         {/* Sin esto no hay PWA instalable en iOS. No renderiza nada. */}
         <ServiceWorkerRegister />
         {/* Solo aparece sin red. Vacía la cola cuando vuelve. */}

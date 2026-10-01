@@ -180,37 +180,65 @@
 }
 
 /* El área táctil real es 44x44 (lo que un dedo necesita); el cuadrado visible
-   sigue siendo 16x16, y se posiciona sobre el prefijo invisible. */
+   sigue siendo 16x16, y se posiciona sobre el prefijo invisible.
+
+   El input es de verdad y es el control: se tabula, se marca con Enter y con
+   Espacio, y el lector de pantalla lo anuncia con su estado. Antes era un
+   `<button>` con `tabIndex={-1}` y `aria-hidden`: cliqueable con el ratón,
+   inalcanzable con el teclado.
+
+   Está oculto con la técnica de visually-hidden (1px + clip), NO con
+   `display:none` ni `visibility:hidden`: las dos lo sacan del recorrido de
+   tabulación, que es justo lo que hay que arreglar. El cuadrado que se ve lo
+   dibuja el `<label>` de al lado, y el foco se refleja ahí. */
 .hit {
-  appearance: none;
-  background: none;
-  border: 0;
-  padding: 0;
-  margin: 0;
   position: absolute;
-  top: 0;
+  top: calc(var(--linea) / 2 - 22px);
   left: 0;
-  width: 44px;
   /* 44x44 es el mínimo que Apple pide para un dedo. La línea mide 27.2px, así
-     que el botón se extiende hacia arriba y hacia abajo: el área real de toque
-     es 44x44 aunque la línea sea más baja. */
+     que el área se extiende hacia arriba y hacia abajo. */
+  width: 44px;
   height: 44px;
   min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+  /* `.capa` es `pointer-events: none` para que el texto no robe el clic. Este es
+     el único elemento que tiene que recibirlo, así que hay que volver a
+     encenderlo explícitamente: `pointer-events` se hereda. */
+  pointer-events: auto;
+  /* Clic en el cuadrado = clic en el input: el input cubre el área y el label
+     lo apunta con `for`. */
+  z-index: 1;
+}
+
+/* El outline del input invisible no se ve. El foco se muestra en el cuadrado. */
+.hit:focus-visible {
+  outline: none;
+}
+
+.hit:focus-visible + .caja-envoltura .caja {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* El cuadrado visible. Es el label, así que el clic cae en el input.
+   `left` tiene que quedar en 0 y el alineado se hace SOLO acá: `left` y
+   `margin-left` se suman, y un margen de 4px correría el cuadrado 4px a la
+   derecha de la línea. */
+.caja-envoltura {
+  position: absolute;
+  top: calc(var(--linea) / 2 - 22px);
+  left: 0;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  pointer-events: auto;
+  pointer-events: none;
   cursor: pointer;
-  /* Centra los 44px de alto sobre los 27.2px de la línea. */
-  top: calc(var(--linea) / 2 - 22px);
-  /* El `☐ ` mide ~1.2em. El botón arranca en 0 y el cuadrado de 16px queda
-     dentro de los 44px. Este margen lo alinea con donde estaba el carácter.
-
-     `left` tiene que quedar en 0 y el alineado se hace SOLO acá. No son dos
-     formas de hacer lo mismo: `left` y `margin-left` se suman. Poner left:4px
-     mueve el cuadrado 4px a la derecha de la línea, que es justo el desvío que
-     esta regla existe para cancelar. Medido: sin left el desvío es -18.4px,
-     con left:4px queda en -14.4px. */
 }
 
 .caja {
@@ -290,13 +318,10 @@
   transform: rotate(45deg) translate(-1px, -1px);
 }
 
-.hit:focus-visible {
+.hit:focus-visible + .caja-envoltura .caja {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
-
-/* El foco real va en el input de la textarea (F2Accessibility), el botón es
-   tabIndex={-1}. Este foco existe solo por si se navega con teclado el display. */
 
 /* Texto ------------------------------------------------------------------- */
 .texto {

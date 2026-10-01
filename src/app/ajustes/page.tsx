@@ -42,10 +42,23 @@ export default async function AjustesPage() {
       </section>
 
       <section className="mb-8">
-        <p className="text-sm text-dim mb-2">Qué avisos recibís</p>
+        <h2 className="text-sm text-dim mb-2 font-normal" id="avisos-titulo">
+          Qué avisos recibís
+        </h2>
         {/* Botones de radio, no <select>: son tres opciones y un `<select>` en
-            iOS abre un picker nativo que tapa media pantalla. */}
-        <ul className="flex flex-col gap-1 text-sm">
+            iOS abre un picker nativo que tapa media pantalla.
+
+            `role="radiogroup"` + `role="radio"` es lo que hace que un lector de
+            pantalla anuncie "grupo, 1 de 3". Antes los `role="radio"` estaban
+            sueltos en un `<ul>` sin grupo: el rol no tenía a qué agarrarse.
+
+            La flecha ↑↓ NO se implementa a mano: es comportamiento nativo de un
+            grupo de radios real, pero acá cada opción es un `<form>` distinto con
+            su propio submit (así cada una manda su valor al servidor). Con
+            `role="radio"` sintetizado, el tabulador recorre los tres como
+            botones normales, que es predecible y no simula un teclado de flechas
+            que no responde. */}
+        <div role="radiogroup" aria-labelledby="avisos-titulo" className="flex flex-col gap-1 text-sm">
           {(
             [
               ["all", "Todas, las mías y las suyas"],
@@ -53,21 +66,20 @@ export default async function AjustesPage() {
               ["none", "Ninguno"],
             ] as const
           ).map(([valor, etiqueta]) => (
-            <li key={valor}>
-              <form action={guardarAvisos}>
-                <input type="hidden" name="notify" value={valor} />
-                <button
-                  className="hover:text-accent w-full text-left"
-                  type="submit"
-                  role="radio"
-                  aria-checked={profile.notify === valor}
-                >
-                  {profile.notify === valor ? "●" : "○"} {etiqueta}
-                </button>
-              </form>
-            </li>
+            <form key={valor} action={guardarAvisos}>
+              <input type="hidden" name="notify" value={valor} />
+              <button
+                className="hover:text-accent w-full text-left flex items-center gap-2"
+                type="submit"
+                role="radio"
+                aria-checked={profile.notify === valor}
+              >
+                <span aria-hidden="true">{profile.notify === valor ? "●" : "○"}</span>
+                {etiqueta}
+              </button>
+            </form>
           ))}
-        </ul>
+        </div>
       </section>
 
       <section className="mb-8">

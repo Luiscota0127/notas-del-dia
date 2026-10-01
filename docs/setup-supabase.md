@@ -1,7 +1,7 @@
 # Supabase: pasos para vos
 
 Hacé esto en cualquier momento durante F3. No bloquea nada: el editor ya
-funciona sin backend con `/2026-09-01?demo=1`.
+funciona sin backend con `/casa/2026-09-01?demo=1`.
 
 ## 1. Crear el proyecto
 

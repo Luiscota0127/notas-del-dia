@@ -60,6 +60,13 @@ function suscribir(callback: () => void): () => void {
  * Inline y síncrono a propósito. Es la única forma de evitar el flash.
  */
 export function ThemeScript() {
-  const js = `try{var t=localStorage.getItem("tema");if(t==="light"||(!t&&matchMedia("(prefers-color-scheme: light)").matches)){document.documentElement.dataset.theme="light"}}catch(e){}`;
+  // Solo se consulta lo que la persona eligió. NO se mira `prefers-color-scheme`.
+  //
+  // Antes, sin preferencia guardada, se seguía al sistema y un equipo en claro
+  // abría la app en claro. `visual.md` fija oscuro como la dirección —"#111111,
+  // el look de Notion"—, y el objetivo declarado es que ella abra la app y no
+  // note el cambio. Si la primera apertura depende de un ajuste del sistema que
+  // no elegimos, el cambio se nota. El toggle de Ajustes sigue funcionando.
+  const js = `try{if(localStorage.getItem("tema")==="light"){document.documentElement.dataset.theme="light"}}catch(e){}`;
   return <script dangerouslySetInnerHTML={{ __html: js }} />;
 }

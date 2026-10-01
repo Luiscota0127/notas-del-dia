@@ -85,6 +85,60 @@ async function enviar(email: string, nombre: string | undefined, origen: string)
     },
   });
 
-  if (error) return { ok: false, motivo: "auth" as const, mensaje: error.message };
+  if (error) {
+    return { ok: false, motivo: "auth" as const, mensaje: mensajeLegible(error, email) };
+  }
   return { ok: true as const };
+}
+
+/**
+ * El mensaje de error, en castellano y con qué hacer.
+ *
+ * `error.message` de Supabase es un string en inglés pensado para developers
+ * ("Error sending confirmation email"). Mostrándoselo a quien intenta entrar lo
+ * único que comunica es que la app está rota, y no dice nada de que lo que está
+ * roto es una configuración del servidor —algo que sí tiene arreglo y no depende
+ * de ella.
+ *
+ * Los 500 de "enviar el correo" son SIEMPRE el SMTP: credenciales, remitente sin
+ * verificar, o cuota. No es el código de la app y no se arregla desde el teléfono.
+ */
+function mensajeLegible(
+  error: { message: string; status?: number; code?: string },
+  email: string,
+): string {
+  const m = (error.message ?? "").toLowerCase();
+
+  // 429 y rate limit: poco probable después de poner SMTP propio, pero el
+  // mensaje de Supabase no siempre trae el código en `status`.
+  if (error.status === 429 || m.includes("rate limit") || m.includes("too many")) {
+    return "Mandamos demasiados correos hace poco. Esperá unos minutos y probá otra vez.";
+  }
+
+  // El dominio del remitente sin verificar es LA causa más común cuando se
+  // agrega SMTP propio: Resend y Brevo rechazan el envío con un 500 y Supabase lo
+  // reporta así, sin decir cuál de los dos es.
+  if (
+    m.includes("sending confirmation email") ||
+    m.includes("sending email") ||
+    m.includes("smtp")
+  ) {
+    return "No pudimos mandar el correo. Es un problema del servidor de correo, no tuyo. Probá en un rato.";
+  }
+
+  // La URL de redirect no está en la lista de permitidos: el link llegaría pero
+  // no volvería a la app. Es un ajuste del panel, y el mensaje de Supabase no lo
+  // aclara.
+  if (m.includes("redirect") || m.includes("not allowed") || m.includes("site_url")) {
+    return "La dirección de la app no está autorizada para este correo. Hay que agregarla en Supabase.";
+  }
+
+  // Fallo de signup: con el signup apagado, un correo nuevo no se puede crear.
+  if (m.includes("signups not allowed") || m.includes("not allowed to sign up")) {
+    return `No se pueden crear cuentas nuevas. Si ${email} todavía no tiene cuenta, hay que habilitarlas en Supabase.`;
+  }
+
+  // Cualquier otra cosa: el texto de Supabase sirve, porque ya se revisó que no
+  // sea ninguno de los casos de arriba.
+  return error.message || "No pudimos mandar el correo. Probá otra vez.";
 }

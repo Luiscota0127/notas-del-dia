@@ -4,8 +4,10 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { ContadorDia } from "@/components/ContadorDia";
 import { AvisoCambioAjeno } from "@/components/AvisoCambioAjeno";
+import { ToastAviso } from "@/components/ToastAviso";
 import { useNota } from "@/lib/hooks/useCache";
-import { emptyNoteTemplate } from "@/lib/format";
+import { useAvisos } from "@/lib/hooks/useAvisos";
+import { emptyNoteTemplate, formatLong } from "@/lib/format";
 import { parseNote, toggleCheck } from "@/lib/parse";
 
 import { DisplayLayer } from "./DisplayLayer";
@@ -55,6 +57,13 @@ export function NoteEditor({
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const capaRef = useRef<HTMLDivElement>(null);
+
+  // El scheduler de recordatorios (canal 1 de F4). Corre sobre el body vivo, así
+  // que avisar de "7:30am" funciona aunque se haya escrito en este momento.
+  const { aviso, estado: permiso, hayQuePedir, pedirPermiso, cerrarAviso } = useAvisos(
+    { userId: me.id, userName: me.name, agendaId, fecha: date, body },
+    agendaId,
+  );
 
   // Undo de las acciones programáticas (toggle de checkbox). La escritura va por
   // el undo nativo de la textarea, que es el 95% del uso.
@@ -397,6 +406,12 @@ export function NoteEditor({
   const agregarTarea = useCallback(() => agregarAlFinal("☐ "), [agregarAlFinal]);
   const agregarLinea = useCallback(() => agregarAlFinal(""), [agregarAlFinal]);
 
+  // El pedido de permiso no va en demo: nadie que esté revisando el editor quiere
+// un botón de permisos del sistema en la nota de ejemplo.
+const esDemo =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("demo") === "1";
+
   const tasks = parseNote(body);
 
   return (
@@ -405,7 +420,13 @@ export function NoteEditor({
           parten en varias líneas y se lee mal. */}
       <header className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="min-w-0">
-          <h1 className="text-xl">{date}</h1>
+          {/* La fecha en formato largo, no el ISO crudo: `2026-10-01` arriba y
+              `MARTES 01 SEP` en la nota son el mismo dato escrito de dos formas.
+              Pero NO `formatDayHeading`, que es exactamente lo que dice el
+              encabezado del cuerpo: salía "MARTES 01 SEP" dos veces, a 30px de
+              distancia. Acá va la forma legible y el encabezado de la nota queda
+              como el rótulo del día. */}
+          <h1 className="text-xl capitalize">{formatLong(date)}</h1>
           <p className="text-dim text-sm truncate">
             {me.name}
             {partner ? ` · viendo también a ${partner.name}` : ""}
@@ -462,6 +483,37 @@ export function NoteEditor({
           + Línea
         </button>
       </div>
+
+      {aviso && <ToastAviso aviso={aviso} onCerrar={cerrarAviso} />}
+
+      {/* Solo cuando el permiso se puede pedir. En iOS sin instalar sale
+          "ios-instalada" y esto no aparece: el aviso de instalar dice lo mismo. */}
+      {hayQuePedir && permiso === "pedir" && !esDemo && (
+        <PedirNotificaciones pedir={pedirPermiso} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * El pedido de permiso de notificaciones.
+ *
+ * Vive acá y no en Ajustes porque es el momento donde tiene sentido: alguien
+ * acaba de escribir "7:30am something" y es cuando el aviso le importa. En
+ * Ajustes sería un interruptor más que nadie va a tocar.
+ *
+ * En iOS NO se pide: el permiso depende de que la app esté instalada, y el aviso
+ * de instalar ya dice eso. Pedirlo ahí sería un botón que no hace nada.
+ */
+function PedirNotificaciones({ pedir }: { pedir: () => void }) {
+  return (
+    <div className="mt-4 border-t border-line pt-3">
+      <p className="text-sm text-dim mb-2">
+        ¿Querés que te avise cuando es hora de algo?
+      </p>
+      <button type="button" onClick={pedir} className="btn-ghost text-sm">
+        Activar los avisos
+      </button>
     </div>
   );
 }
