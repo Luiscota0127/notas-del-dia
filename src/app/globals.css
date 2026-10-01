@@ -15,6 +15,12 @@
   --color-accent: #f59e0b;
   --color-line: #2e2e2e;
 
+  /* El texto del botón NO puede ser un color fijo: el acento cambia con el tema
+     y los dos necesitan un texto distinto. Con `#111111` fijo, el botón del
+     tema claro daba 3.76:1 sobre su acento y queda por debajo del 4.5:1 de AA.
+     Medido: oscuro 8.79:1 con texto oscuro, claro 5.02:1 con texto blanco. */
+  --color-btn-fg: #111111;
+
   --font-sans:
     system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -34,6 +40,9 @@
   --color-dim: #6b6b70;
   --color-accent: #b45309;
   --color-line: #d4d4d8;
+  /* El acento claro es un naranja oscuro, así que el texto del botón tiene que
+     ser blanco: da 5.02:1. Con el #111111 del tema oscuro daría 3.76:1. */
+  --color-btn-fg: #ffffff;
 }
 
 html {
@@ -84,7 +93,7 @@ body {
 
 @utility btn {
   background: var(--color-accent);
-  color: #111111;
+  color: var(--color-btn-fg);
   border-radius: 4px;
   padding: 0.625rem 0.75rem;
   font-size: 1rem;

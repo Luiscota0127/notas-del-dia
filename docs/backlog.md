@@ -1,5 +1,34 @@
 # Backlog
 
+## 0. El borde de los controles no llega a 3:1 — DECISIÓN PENDIENTE
+
+**Estado:** medido, con los números a la vista, esperando decisión de diseño.
+
+`--color-line` da **1.39:1 en oscuro y 1.48:1 en claro** contra su fondo. WCAG
+1.4.11 pide 3:1, pero solo para el borde que **identifica un control**, no para
+los separadores decorativos. El problema es que `--color-line` está haciendo las
+dos cosas a la vez: separa ítems de lista y además dibuja el borde de los inputs
+y de los botones fantasma.
+
+Los valores que sí cumplirían:
+
+| Tema | Hoy | Cumple con |
+|---|---|---|
+| claro | `#d4d4d8` (1.48) | `#949494` (3.03) · `#8a8a8a` (3.45) |
+| oscuro | `#2e2e2e` (1.39) | `#5e5e5e` (2.91) · `#666666` (3.29) |
+
+**Lo que recomiendo:** partir el token. `--color-line` sigue sutil para
+decorar, y un `--color-border-control` nuevo, más fuerte, solo para `.input` y
+`.btn-ghost`. Así los separadores siguen livianos —que es el aspecto tipo Notion
+que fija `visual.md`— y los campos se ven de verdad.
+
+**Lo que no recomiendo:** subir `--color-line` entero. Hace visibles todos los
+separadores de la app y la aleja del diseño de referencia.
+
+El test de contraste **no está en verde a propósito**: mientras la decisión esté
+abierta tiene que seguir diciendo que no llega. Un test que pasa porque bajé el
+umbral esconde el problema.
+
 ## 1. El precache guarda la pantalla de login — CERRADO
 
 Arreglado en `dfc8d52` y verificado en producción: el precache ya no tiene `/`,
