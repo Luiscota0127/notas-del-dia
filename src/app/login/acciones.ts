@@ -28,10 +28,13 @@ const sinClave = { ok: true as const };
 
 export async function pedirLink({
   email,
+  nombre,
   clave,
   origen,
 }: {
   email: string;
+  /** Solo se usa al CREAR la cuenta. Ver la nota de `enviar`. */
+  nombre?: string;
   clave: string;
   /** `window.location.origin`, que lo pasa el cliente. El link tiene que volver
    *  a un origen que Supabase tenga permitido, y ese lo sabe Supabase, no la app. */
@@ -42,7 +45,7 @@ export async function pedirLink({
   // Sin clave configurada no hay puerta. Así el desarrollo local y cualquier
   // despliegue propio no quedan trancados por forgotten una variable.
   if (!esperado) {
-    const r = await enviar(email, origen);
+    const r = await enviar(email, nombre, origen);
     return r.ok ? sinClave : r;
   }
 
@@ -50,16 +53,26 @@ export async function pedirLink({
     return { ok: false, motivo: "clave" };
   }
 
-  return enviar(email, origen);
+  return enviar(email, nombre, origen);
 }
 
-async function enviar(email: string, origen: string) {
+async function enviar(email: string, nombre: string | undefined, origen: string) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !anon) {
     return { ok: false, motivo: "auth" as const, mensaje: "La app no está configurada." };
   }
+
+  // El nombre va en `options.data`, que Supabase guarda en
+  // `raw_user_meta_data`. El trigger `handle_new_user` lo lee de ahí para armar el
+  // profile — y si no está, cae al prefijo del correo, que es "luiscota" y no el
+  // nombre que la persona quiere que vean los demás.
+  //
+  // Solo se aplica al crear la cuenta. Si el correo ya existe, Supabase ignora
+  // el metadata: por eso la pantalla dice que el nombre es para la primera vez,
+  // y no promete algo que no hace.
+  const data = nombre?.trim() ? { name: nombre.trim().slice(0, 60) } : undefined;
 
   const supabase = createClient(url, anon);
   const { error } = await supabase.auth.signInWithOtp({
@@ -68,6 +81,7 @@ async function enviar(email: string, origen: string) {
       // Vuelve a /login para que el proxy cierre el ciclo: entra sin sesión,
       // cae ahí, magic link, y vuelve con la cookie puesta.
       emailRedirectTo: `${origen}/login`,
+      ...(data ? { data } : {}),
     },
   });
 

@@ -7,12 +7,19 @@ import { pedirLink } from "@/app/login/acciones";
 /**
  * El login pide correo y, si la app tiene clave de acceso, también la clave.
  *
+ * Dos modos en la misma pantalla y no dos rutas. Volver es el caso frecuente —
+ * una persona que ya tiene cuenta— y arranca en "Entrar", así que no paga un clic
+ * extra. Crear cuenta es el paso raro, y por eso pide nombre: sin nombre el
+ * profile se arma con el prefijo del correo y los demás la ven como "luiscota".
+ *
  * El envío del magic link pasa por una server action: la clave se valida en el
  * servidor y nunca llega al bundle. Ver el comentario de `acciones.ts` para por
  * qué no hacerlo en el cliente.
  */
 export function LoginForm({ requiereClave }: { requiereClave: boolean }) {
+  const [creando, setCreando] = useState(false);
   const [email, setEmail] = useState("");
+  const [nombre, setNombre] = useState("");
   const [clave, setClave] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +30,12 @@ export function LoginForm({ requiereClave }: { requiereClave: boolean }) {
     setBusy(true);
     setError(null);
 
-    const r = await pedirLink({ email, clave, origen: window.location.origin });
+    const r = await pedirLink({
+      email,
+      nombre: creando ? nombre : undefined,
+      clave,
+      origen: window.location.origin,
+    });
 
     setBusy(false);
     if (r.ok) return setSent(true);
@@ -45,6 +57,24 @@ export function LoginForm({ requiereClave }: { requiereClave: boolean }) {
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
+      {creando && (
+        <div>
+          <label htmlFor="nombre" className="sr-only">
+            Cómo te llamamos
+          </label>
+          <input
+            id="nombre"
+            required
+            maxLength={60}
+            autoComplete="name"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Cómo te llamamos"
+            className="input"
+          />
+        </div>
+      )}
+
       <div>
         <label htmlFor="email" className="sr-only">
           Tu correo
@@ -88,6 +118,24 @@ export function LoginForm({ requiereClave }: { requiereClave: boolean }) {
           {error}
         </p>
       )}
+
+      <div className="border-t border-line pt-3">
+        <button
+          type="button"
+          onClick={() => {
+            setCreando(!creando);
+            setError(null);
+          }}
+          className="text-dim text-sm hover:text-accent text-left"
+        >
+          {creando ? "Ya tengo cuenta, entrar" : "Crear una cuenta"}
+        </button>
+        {creando && (
+          <p className="text-dim text-sm mt-1">
+            El nombre solo se usa la primera vez. Después lo cambiás en Ajustes.
+          </p>
+        )}
+      </div>
     </form>
   );
 }
