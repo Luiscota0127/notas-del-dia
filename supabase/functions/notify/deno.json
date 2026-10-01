@@ -1,0 +1,13 @@
+{
+  "//": "La Edge Function corre en Deno, no en Next. Este tsconfig existe para que `deno check` y el editor usen las APIs de Deno en vez de las de DOM.",
+  "compilerOptions": {
+    "lib": ["deno.ns", "deno.unstable", "esnext"],
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["deno.ns"]
+  },
+  "include": ["./**/*.ts", "../../src/lib/recordatorio.ts", "../../src/lib/parse.ts"]
+}
