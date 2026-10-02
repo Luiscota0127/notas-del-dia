@@ -13,10 +13,20 @@ export default async function LoginPage() {
   if (user) redirect("/agendas");
 
   return (
-    // Mismo `max-w-lg` y misma alineación a la izquierda que Ajustes y Agendas.
-    // Antes el login era `max-w-sm` centrado: al pasar de una pantalla a la otra
-    // el bloque se movía de lugar sin motivo, y se leía como otra app.
-    <main className="p-4 md:p-8 max-w-lg">
+    // El login va centrado. Antes estaba pegado a la izquierda como Ajustes y
+    // Agendas, con un comentario que decía que así no se leía como otra app.
+    // Se revierte esa decisión, y la razón original sigue sirviendo con otro
+    // arreglo: lo que molestaba era el ANCHO, que saltaba de `max-w-sm` a
+    // `max-w-lg` al pasar de una pantalla a otra. El ancho se mantiene igual en
+    // todas; lo que cambia es que ahora el bloque está en el medio.
+    //
+    // El login es una tarea sola y aislada: no es una pantalla dentro de la app
+    // a la que se llega navegando, es una puerta. Centrarla dice eso.
+    //
+    // Solo horizontal. Un `items-center` vertical pelearía con el teclado de
+    // iPhone, que recorta la mitad de la pantalla y dejaría el campo de correo
+    // justo debajo del borde.
+    <main className="p-4 md:p-8 max-w-lg mx-auto">
       <h1 className="text-xl mb-1">Notas del Día</h1>
       <p className="text-dim mb-8">La libreta de pendientes de la casa.</p>
 
