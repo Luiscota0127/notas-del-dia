@@ -37,13 +37,13 @@ export default async function AjustesPage() {
           </button>
         </form>
         <p className="text-dim text-sm">
-          Es el nombre que ven los demás en las agendas donde sos parte.
+          Es el nombre que ven los demás en las agendas donde eres parte.
         </p>
       </section>
 
       <section className="mb-8">
         <h2 className="text-sm text-dim mb-2 font-normal" id="avisos-titulo">
-          Qué avisos recibís
+          Qué avisos recibes
         </h2>
         {/* Botones de radio, no <select>: son tres opciones y un `<select>` en
             iOS abre un picker nativo que tapa media pantalla.

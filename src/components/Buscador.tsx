@@ -172,7 +172,7 @@ export function Buscador({
 
         {texto.trim().length < 2 && (
           <p className="px-4 py-4 text-dim text-sm">
-            Dos caracteres o más. Con las flechas elegís, con Enter abrís el día.
+            Dos caracteres o más. Con las flechas eliges, con Enter abres el día.
           </p>
         )}
       </div>

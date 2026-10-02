@@ -55,7 +55,7 @@ export default async function AgendasPage() {
 
       {agendas.length === 0 ? (
         <p className="text-dim text-sm mb-8">
-          Todavía no tenés ninguna agenda. Creá la primera abajo.
+          Todavía no tienes ninguna agenda. Crea la primera abajo.
         </p>
       ) : (
         <ul className="flex flex-col gap-2 mb-8">

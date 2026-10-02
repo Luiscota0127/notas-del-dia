@@ -50,11 +50,11 @@ function SinConfigurar() {
   return (
     <div className="p-3 text-sm border border-line">
       <p className="mb-2">
-        <strong>Supabase sin configurar.</strong> Copiá <code>.env.example</code> a{" "}
-        <code>.env.local</code> y completá las dos variables.
+        <strong>Supabase sin configurar.</strong> Copia <code>.env.example</code> a{" "}
+        <code>.env.local</code> y completa las dos variables.
       </p>
       <p className="text-dim">
-        Después corré <code>0001_init.sql</code> y <code>0002_realtime.sql</code> desde
+        Después corre <code>0001_init.sql</code> y <code>0002_realtime.sql</code> desde
         el SQL Editor del proyecto.
       </p>
     </div>

@@ -63,9 +63,16 @@ export function ContinuarSesion() {
     setListo(true);
     // replace, no push: el link del magic no debe quedar en el historial.
     router.replace("/agendas");
-    // refresh: el server component vuelve a leer la cookie y deja de mandar a
-    // /login.
-    router.refresh();
+    //
+    // SIN router.refresh() después, a propósito. Antes hacía replace + refresh y
+    // eran dos viajes al servidor: uno para traer /agendas y otro para
+    // recargarlo. Medido, cada viaje contra Supabase desde acá cuesta ~600ms, así
+    // que el segundo se comía casi un segundo entero de espera.
+    //
+    // El refresh solo hace falta cuando la pantalla ACTUAL ya fue renderizada
+    // por el servidor con datos viejos y hay que volver a pedirla. Acá se cambia
+    // de ruta: /agendas se pide una sola vez y esa petición ya lleva la cookie,
+    // porque `_saveSession` corre antes de que Supabase dispare SIGNED_IN.
   }, [router]);
 
   useEffect(() => {
@@ -122,7 +129,7 @@ export function ContinuarSesion() {
           console.error("[login] Supabase rechazó el token:", error.message);
           limpiarTokenDeLaUrl();
           setProblema(
-            "Ese link ya se usó o se venció. Mandate otro desde el formulario de abajo.",
+            "Ese link ya se usó o se venció. Mándatelo otra vez desde el formulario de abajo.",
           );
           return;
         }
@@ -137,7 +144,7 @@ export function ContinuarSesion() {
         });
         if (errorCanje) {
           console.error("[login] falló el canje manual:", errorCanje.message);
-          setProblema("No pudimos iniciar sesión. Probá de nuevo en un momento.");
+          setProblema("No pudimos iniciar sesión. Prueba de nuevo en un momento.");
           return;
         }
 

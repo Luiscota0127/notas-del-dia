@@ -509,7 +509,7 @@ function PedirNotificaciones({ pedir }: { pedir: () => void }) {
   return (
     <div className="mt-4 border-t border-line pt-3">
       <p className="text-sm text-dim mb-2">
-        ¿Querés que te avise cuando es hora de algo?
+        ¿Quieres que te avise cuando es hora de algo?
       </p>
       <button type="button" onClick={pedir} className="btn-ghost text-sm">
         Activar los avisos

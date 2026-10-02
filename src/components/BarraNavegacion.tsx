@@ -60,34 +60,54 @@ export function BarraNavegacion({
 
   return (
     <>
+      {/* El nombre de la agenda, arriba de todo y siempre.
+          Antes solo aparecía dentro del menú móvil y como parte del texto "Ajustes
+          de X" en el sidebar: en ninguna de las dos partes estaba arriba de
+          nada, y con más de una agenda abierta no se sabía cuál se estaba
+          mirando sin abrir el menú.
+
+          Va DENTRO de la cabecera pegajosa en móvil y no como una barra aparte:
+          dos barras pegajosas encimadas se comen la pantalla, y en un iPhone
+          cada línea cuenta. */}
+      {nombreAgenda && (
+        <div className="hidden md:block md:col-span-full border-b border-line px-4 py-2">
+          <span className="text-sm font-medium truncate">{nombreAgenda}</span>
+        </div>
+      )}
+
       {/* iPhone: cabecera compacta + menú. No hay sidebar, no entra. */}
-      <header className="md:hidden flex items-center gap-2 px-3 py-2 border-b border-line sticky top-0 bg-bg z-20">
-        <Link
-          href={`/${agendaId}/${todayISO()}${nav.demo}`}
-          className="text-sm font-medium hover:text-accent shrink-0"
-        >
-          {esHoy ? "Hoy" : formatCorto(fecha)}
-        </Link>
-        <span className="text-dim text-sm truncate flex-1">
-          {esHoy ? formatLong(fecha) : ""}
-        </span>
-        <button
-          type="button"
-          onClick={() => setBuscadorAbierto(true)}
-          aria-label="Buscar"
-          className="w-9 h-9 flex items-center justify-center text-dim hover:text-fg shrink-0"
-        >
-          <IconoBuscar />
-        </button>
-        <button
-          type="button"
-          onClick={() => setMenuAbierto(!menuAbierto)}
-          aria-label="Menú"
-          aria-expanded={menuAbierto}
-          className="w-9 h-9 flex items-center justify-center text-dim hover:text-fg shrink-0"
-        >
-          <IconoMenu abierto={menuAbierto} />
-        </button>
+      <header className="md:hidden border-b border-line sticky top-0 bg-bg z-20">
+        {nombreAgenda && (
+          <div className="px-3 pt-2 text-xs text-dim truncate">{nombreAgenda}</div>
+        )}
+        <div className="flex items-center gap-2 px-3 py-2">
+          <Link
+            href={`/${agendaId}/${todayISO()}${nav.demo}`}
+            className="text-sm font-medium hover:text-accent shrink-0"
+          >
+            {esHoy ? "Hoy" : formatCorto(fecha)}
+          </Link>
+          <span className="text-dim text-sm truncate flex-1">
+            {esHoy ? formatLong(fecha) : ""}
+          </span>
+          <button
+            type="button"
+            onClick={() => setBuscadorAbierto(true)}
+            aria-label="Buscar"
+            className="w-9 h-9 flex items-center justify-center text-dim hover:text-fg shrink-0"
+          >
+            <IconoBuscar />
+          </button>
+          <button
+            type="button"
+            onClick={() => setMenuAbierto(!menuAbierto)}
+            aria-label="Menú"
+            aria-expanded={menuAbierto}
+            className="w-9 h-9 flex items-center justify-center text-dim hover:text-fg shrink-0"
+          >
+            <IconoMenu abierto={menuAbierto} />
+          </button>
+        </div>
       </header>
 
       {menuAbierto && (
@@ -173,11 +193,12 @@ export function BarraNavegacion({
 
           {nombreAgenda && (
             <div className="mt-4 pt-3 border-t border-line flex flex-col gap-1 text-sm">
+              {/* Sin el nombre: ya está arriba de todo. */}
               <Link
                 href={`/${agendaId}/ajustes${nav.demo}`}
                 className="text-dim hover:text-accent"
               >
-                Ajustes de {nombreAgenda}
+                Ajustes de la agenda
               </Link>
               <Link href="/agendas" className="text-dim hover:text-accent">
                 Cambiar de agenda

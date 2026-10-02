@@ -72,7 +72,7 @@ describe("el reintento no se desactiva antes de tiempo", () => {
   });
 });
 
-describe("el redirect es replace y refresca", () => {
+describe("el redirect es replace y no refresca", () => {
   it("replace, no push: el token no debe quedar en el historial", () => {
     // Con push, el botón "atrás" del navegador vuelve a /login#access_token=…,
     // y el token — que es una credencial — queda en el historial.
@@ -80,8 +80,17 @@ describe("el redirect es replace y refresca", () => {
     expect(componente).not.toContain('router.push("/agendas")');
   });
 
-  it("refresh: el server component tiene que volver a leer la cookie", () => {
-    expect(componente).toContain("router.refresh()");
+  it("no hace un segundo viaje al servidor con router.refresh()", () => {
+    // replace + refresh son dos viajes: uno para traer /agendas y otro para
+    // recargarlo. El refresh solo hace falta cuando la pantalla ACTUAL ya fue
+    // renderizada con datos viejos; acá se cambia de ruta, y la petición ya
+    // lleva la cookie porque `_saveSession` corre antes de SIGNED_IN.
+    // Medido: cada viaje contra Supabase cuesta ~600ms.
+    // Con el punto y coma, porque el comentario que explica POR QUÉ no se llama
+    // menciona `router.refresh()`. Buscar la palabra suelta tocaría el
+    // comentario y no la llamada.
+    expect(componente).not.toContain("router.refresh();");
+    expect(componente).toContain('router.replace("/agendas");');
   });
 });
 
@@ -115,7 +124,7 @@ describe("un link que no sirve se avisa, no se ignora", () => {
 
   it("el mensaje dice qué hacer, no solo qué pasó", () => {
     expect(componente).toContain("Ese link ya se usó o se venció");
-    expect(componente).toContain("Mandate otro");
+    expect(componente).toContain("Mándatelo otra vez");
   });
 
   it("limpia el token muerto de la barra", () => {

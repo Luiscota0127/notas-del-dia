@@ -43,7 +43,7 @@ describe("el error no muestra el texto crudo de Supabase", () => {
     expect(conMensaje.length).toBeGreaterThanOrEqual(4);
     for (const m of conMensaje) {
       const diceQueHacer =
-        /Probá|Esperá|revisá|Revisala|agregarla|habilitarlas|arregla/i.test(m);
+        /Prueba|Espera|revisala|Revísala|agregarla|habilitarlas|arregla|otra vez/i.test(m);
       expect(diceQueHacer, `el mensaje no dice qué hacer: "${m}"`).toBe(true);
     }
   });
@@ -87,6 +87,6 @@ describe("el mensaje de la UI no tapa el del servidor", () => {
   });
 
   it("el fallback es un problema del servidor, no de quien entra", () => {
-    expect(form).toMatch(/No pude mandar el correo\. Probá/);
+    expect(form).toMatch(/No pude mandar el correo\. Prueba/);
   });
 });

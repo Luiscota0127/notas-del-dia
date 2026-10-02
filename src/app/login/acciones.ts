@@ -112,7 +112,7 @@ function mensajeLegible(
   // 429 y rate limit: poco probable después de poner SMTP propio, pero el
   // mensaje de Supabase no siempre trae el código en `status`.
   if (error.status === 429 || m.includes("rate limit") || m.includes("too many")) {
-    return "Mandamos demasiados correos hace poco. Esperá unos minutos y probá otra vez.";
+    return "Mandamos demasiados correos hace poco. Espera unos minutos y prueba otra vez.";
   }
 
   // El dominio del remitente sin verificar es LA causa más común cuando se
@@ -123,7 +123,7 @@ function mensajeLegible(
     m.includes("sending email") ||
     m.includes("smtp")
   ) {
-    return "No pudimos mandar el correo. Es un problema del servidor de correo, no tuyo. Probá en un rato.";
+    return "No pudimos mandar el correo. Es un problema del servidor de correo, no tuyo. Prueba en un rato.";
   }
 
   // La URL de redirect no está en la lista de permitidos: el link llegaría pero
@@ -140,5 +140,5 @@ function mensajeLegible(
 
   // Cualquier otra cosa: el texto de Supabase sirve, porque ya se revisó que no
   // sea ninguno de los casos de arriba.
-  return error.message || "No pudimos mandar el correo. Probá otra vez.";
+  return error.message || "No pudimos mandar el correo. Prueba otra vez.";
 }

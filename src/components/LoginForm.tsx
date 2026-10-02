@@ -54,7 +54,7 @@ export function LoginForm({ requiereClave }: { requiereClave: boolean }) {
       // mirando el teclado sin saber qué hacer.
       return setError("Esa clave no es correcta. Revisala y mandá el link otra vez.");
     }
-    setError(r.mensaje ?? "No pude mandar el correo. Probá de nuevo en un momento.");
+    setError(r.mensaje ?? "No pude mandar el correo. Prueba de nuevo en un momento.");
   }
 
   if (sent) {
@@ -151,7 +151,7 @@ export function LoginForm({ requiereClave }: { requiereClave: boolean }) {
         </button>
         {creando && (
           <p className="text-dim text-sm mt-1">
-            El nombre solo se usa la primera vez. Después lo cambiás en Ajustes.
+            El nombre solo se usa la primera vez. Después lo cambias en Ajustes.
           </p>
         )}
       </div>

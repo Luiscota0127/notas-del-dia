@@ -74,7 +74,7 @@ export default async function AjustesAgenda({
                 aria-hidden="true"
               />
               {m.name}
-              {m.id === user.id && <span className="text-dim text-sm"> (vos)</span>}
+              {m.id === user.id && <span className="text-dim text-sm"> (tú)</span>}
             </li>
           ))}
         </ul>
