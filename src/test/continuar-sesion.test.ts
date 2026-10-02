@@ -36,12 +36,20 @@ describe("INITIAL_SESSION no es 'ya entraste'", () => {
   });
 
   it("el redirect está dentro del manejador de SIGNED_IN", () => {
+    // El redirect vive en `entrar()`, que se llama desde el manejador de
+    // SIGNED_IN. Antes estaba escrito en el manejador y este test comparaba
+    // posiciones de texto; ahora se mide lo que importa de verdad: que haya UN
+    // solo lugar que navegue, y que ese lugar se invoque desde SIGNED_IN.
     const i = componente.indexOf('if (evento !== "SIGNED_IN") return;');
-    const redirect = componente.indexOf('router.replace("/agendas")', i);
     expect(i).toBeGreaterThan(-1);
-    expect(redirect).toBeGreaterThan(i);
-    // Y no puede haber otro redirect fuera de ese bloque.
-    expect(componente.split('router.replace("/agendas")').length - 1).toBe(2);
+
+    const llamada = componente.indexOf("entrar();", i);
+    expect(llamada).toBeGreaterThan(i);
+
+    // Un solo punto de salida hacia /agendas: cualquier otro `replace` sería
+    // una forma de saltar la regla de SIGNED_IN.
+    expect(componente.split('router.replace("/agendas")').length - 1).toBe(1);
+    expect(componente.split("const entrar = useCallback(").length - 1).toBe(1);
   });
 });
 
@@ -90,33 +98,19 @@ describe("el redirect es replace y refresca", () => {
  * éxito.
  */
 describe("un link que no sirve se avisa, no se ignora", () => {
-  it("detecta el token en el hash y en el query", () => {
-    expect(componente).toContain("hayTokenEnLaUrl");
-    expect(componente).toContain('hash.includes("access_token")');
-    // El SDK también redirige con #error=... cuando el link venció, así que
-    // ese caso tiene que contar como link, no como visita normal.
-    expect(componente).toContain('hash.includes("error")');
-    expect(componente).toContain('search.includes("code=")');
+  it("lee el access_token del fragmento", () => {
+    expect(componente).toContain("tokenDeLaUrl");
+    expect(componente).toContain('p.get("access_token")');
+    // Se necesita el refresh_token también: si el token resulta válido pero el
+    // canje automático falló, `setSession` no puede funcionar sin él.
+    expect(componente).toContain('p.get("refresh_token")');
   });
 
-  it("solo avisa si hay un token en la URL", () => {
-    // Una visita normal a /login no tiene token: no hay nada que avisar, y
-    // hacerlo convertiría cada login en un error.
-    expect(componente).toMatch(/if \(hayTokenEnLaUrl\(\)\) \{[\s\S]*setLinkMuerto\(true\)/);
-  });
-
-  it("pregunta por el token al fallar, no al montar", () => {
-    // El token puede llegar DESPUÉS de que la página ya esté en /login. Si la
-    // comprobación se hiciera una sola vez al montar, ahí daría "no había
-    // link", el aviso no aparecería nunca, y quedaría la pantalla muda otra
-    // vez: el bug exacto que se está arreglando.
-    const fallo = componente.indexOf("intento.current++ > 10");
-    const pregunta = componente.indexOf("hayTokenEnLaUrl()", fallo);
-    expect(fallo).toBeGreaterThan(-1);
-    expect(pregunta).toBeGreaterThan(fallo);
-
-    // Y no puede quedar una captura por adelantado que se pueda quedar vieja.
-    expect(componente).not.toContain("veniamoDeUnLink");
+  it("no deja helpers muertos", () => {
+    // Existió un `hayTokenEnLaUrl` que quedó sin usar cuando el canje manual
+    // pasó a trabajar con el token directamente. Código muerto en un archivo
+    // chico se nota: el linter lo marqueaba.
+    expect(componente).not.toContain("hayTokenEnLaUrl");
   });
 
   it("el mensaje dice qué hacer, no solo qué pasó", () => {
@@ -151,5 +145,88 @@ describe("un link que no sirve se avisa, no se ignora", () => {
 
   it("avisa con role=alert para que se anuncie sin buscarlo", () => {
     expect(componente).toContain('role="alert"');
+  });
+});
+
+/**
+ * No acusar al link sin haber preguntado.
+ *
+ * El error que cometí, y que la persona reportó tal cual: usó un link
+ * PERFECTAMENTE VÁLIDO y le apareció "Ese link ya se usó o se venció".
+ *
+ * La causa: declaraba el link vencido por el solo hecho de no haber visto
+ * sesión dentro del presupuesto de reintentos. Eso es adivinar. Con una
+ * conexión lenta, un token de sobra válido no llega a canjearse en ese
+ * plazo, y el mensaje le echa la culpa a la persona por algo que no hizo.
+ *
+ * Un error que miente es peor que el silencio que venía a reemplazar: el
+ * silencio se nota, el falso aviso hace perder la confianza en todo lo demás.
+ */
+describe("no se culpa al link sin preguntarle a Supabase", () => {
+  it("antes de avisar, pregunta si el token es válido", () => {
+    // `getUser` es la pregunta directa al servidor. Si el token es inválido,
+    // Supabase contesta con error, y recién ahí tiene sentido decir que el link
+    // no sirve.
+    expect(componente).toContain("auth.getUser(token.access_token)");
+  });
+
+  it("la acusación al link vive DENTRO del error de getUser", () => {
+  // Sin comilla de cierre: el mensaje sigue con ". Mandate otro…", así que
+  // `"Ese link ya se usó o se venció"` como literal no existe en el archivo.
+  expect(componente).toMatch(/if \(error\) \{[\s\S]*?Ese link ya se usó o se venció/);
+  });
+
+  it("comprobar que el texto existe no alcanza: mira el anidamiento", () => {
+    // Con el guard cambiado a `if (false)` la acusación nunca se muestra, pero
+    // el texto sigue en el archivo. Por eso el test anterior mira el `if`.
+    expect(componente).toContain("if (error) {");
+  });
+
+it("el canje manual solo se intenta cuando el token SÍ era válido", () => {
+  // El canje va DESPUÉS de la acusación. Si el error no cortara con return, un
+  // token inválido caería en el canje manual y se trataría como bueno.
+  const acusacion = componente.indexOf("Ese link ya se usó o se venció");
+  const canje = componente.indexOf("auth.setSession({");
+  expect(acusacion).toBeGreaterThan(-1);
+  expect(canje).toBeGreaterThan(acusacion);
+});
+
+it("la acusación va ANTES del mensaje que culpa al link, en el flujo", () => {
+    const pregunta = componente.indexOf("auth.getUser(token.access_token)");
+    const culpa = componente.indexOf("Ese link ya se usó o se venció");
+    expect(pregunta).toBeGreaterThan(-1);
+    expect(culpa).toBeGreaterThan(-1);
+    expect(pregunta).toBeLessThan(culpa);
+  });
+
+  it("si el token es válido, canjea a mano y entra", () => {
+    // El problema es NUESTRO, no de la persona. Un mensaje acá habría tapado un
+    // bug propio inventando un culpable.
+    expect(componente).toContain("auth.setSession({");
+    expect(componente).toContain("token.refresh_token");
+  });
+
+  it("sin token en la URL no dice absolutamente nada", () => {
+    // Una visita normal a /login no tiene token. Si se avisara igual, cada
+    // login arrancaría con un error inventado.
+    const fallo = componente.indexOf("intento.current++");
+    const guarda = componente.indexOf("if (!token) return;", fallo);
+    expect(guarda).toBeGreaterThan(fallo);
+    // El return corta antes de cualquier setProblema.
+    expect(componente.slice(guarda, guarda + 40)).not.toContain("setProblema");
+  });
+
+  it("el presupuesto no es tan corto como para culpar al link por reloj", () => {
+    // Con 10 intentos de 500ms eran 5s. Un canje contra un servidor fuera del
+    // país puede tardar más, y con ese margen el mensaje salía solo.
+    const tope = Number(componente.match(/intento\.current\+\+ > (\d+)/)?.[1]);
+    expect(tope).toBeGreaterThanOrEqual(20);
+  });
+
+  it("deja rastro en la consola de por qué no entró", () => {
+    // Para no volver a adivinar: si vuelve a fallar, tiene que quedar escrito
+    // por qué, y no solo un mensaje en pantalla.
+    expect(componente).toContain("Supabase rechazó el token");
+    expect(componente).toContain("el token era válido y no se canjeó solo");
   });
 });

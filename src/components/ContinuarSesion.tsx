@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createClient } from "@/lib/db/client";
 
@@ -10,7 +10,7 @@ import { createClient } from "@/lib/db/client";
  *
  * El problema: /login decide si hay sesión en el servidor, y eso corre ANTES de
  * que el JavaScript procese el token de la URL. El servidor no lo ve, renderiza
- * el login, y después el cliente canjea el token y pone la cookie… pero nadie
+ * el login, y después el cliente canjea el token y pone la cookie... pero nadie
  * vuelve a preguntar, así que la pantalla queda en login con la sesión ya creada.
  *
  * Con la confirmación de email apagada el token viene en el hash o en el query;
@@ -18,15 +18,21 @@ import { createClient } from "@/lib/db/client";
  * dos casos el canje es del lado del cliente.
  */
 
-/** Si la URL trae un token de sesión: es que llegamos tocando un link. */
-function hayTokenEnLaUrl() {
-  const { hash, search } = window.location;
-  return (
-    hash.includes("access_token") ||
-    hash.includes("error") ||
-    search.includes("code=") ||
-    search.includes("error")
-  );
+/**
+ * El access_token del fragmento, si hay uno.
+ *
+ * Se devuelve el refresh_token también porque, si el token resulta válido pero
+ * el canje automático falló, `setSession` los necesita a los dos.
+ */
+function tokenDeLaUrl() {
+  const bruto = window.location.hash.replace(/^#/, "");
+  if (!bruto) return null;
+
+  const p = new URLSearchParams(bruto);
+  const access_token = p.get("access_token");
+  if (!access_token) return null;
+
+  return { access_token, refresh_token: p.get("refresh_token") ?? "" };
 }
 
 /**
@@ -46,8 +52,21 @@ function limpiarTokenDeLaUrl() {
 export function ContinuarSesion() {
   const router = useRouter();
   const [listo, setListo] = useState(false);
-  const [linkMuerto, setLinkMuerto] = useState(false);
+  const [problema, setProblema] = useState<string | null>(null);
   const intento = useRef(0);
+
+  // Sale de acá, en un solo lugar, a donde sea que toque ir.
+  //
+  // useCallback y no una función suelta: los dos efectos la necesitan, y sin
+  // esto el linter avisa de que falta como dependencia.
+  const entrar = useCallback(() => {
+    setListo(true);
+    // replace, no push: el link del magic no debe quedar en el historial.
+    router.replace("/agendas");
+    // refresh: el server component vuelve a leer la cookie y deja de mandar a
+    // /login.
+    router.refresh();
+  }, [router]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -68,17 +87,11 @@ export function ContinuarSesion() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((evento) => {
       if (evento !== "SIGNED_IN") return;
-
-      setListo(true);
-      // replace, no push: el link del magic no debe quedar en el historial.
-      router.replace("/agendas");
-      // refresh: el server component vuelve a leer la cookie y deja de mandar
-      // a /login.
-      router.refresh();
+      entrar();
     });
 
     return () => subscription.unsubscribe();
-  }, [router]);
+  }, [entrar]);
 
   useEffect(() => {
     // El caso "ya tenías sesión y volvés al login" no dispara SIGNED_IN, solo
@@ -87,49 +100,67 @@ export function ContinuarSesion() {
     if (listo) return;
 
     const id = setInterval(async () => {
-      if (intento.current++ > 10) {
+      if (intento.current++ > 20) {
         clearInterval(id);
 
-        // Acá está el otro bug, el que la persona siente y no puede nombrar:
-        // entró por un link, el token no sirvió, y la pantalla queda muda con un
-        // token muerto en la URL. No hay forma de saber si sigue cargando o si
-        // hay que pedir otro link, así que parece una app colgada.
+        // Agotado el presupuesto y no hay sesión. NO se da por hecho que el link
+        // está muerto: se PREGUNTA a Supabase si el token sirve.
         //
-        // El caso real: los magic links son de un solo uso. Abrir el mismo
-        // correo en dos dispositivos invalida el token del segundo.
-        //
-        // El SDK hace lo mismo por dentro: en `@supabase/auth-js`,
-        // `_getSessionFromURL` limpia `window.location.hash` UNICAMENTE cuando
-        // el canje tiene éxito. Si falla, deja el hash intacto. O sea que un
-        // hash pegado en la barra es la señal de que el token no sirvió.
-        // Se pregunta AHORA y no al montar. El token puede llegar después de
-        // que la página ya esté en /login: si eso pasa, leer la URL una sola vez
-        // al inicio daba "no había link" y el aviso nunca aparecía, que es
-        // justo el fallo que se quería arreglar.
-        if (hayTokenEnLaUrl()) {
+        // Antes se hacía al revés, y era mentira. Se declaraba el link vencido
+        // por el solo hecho de no haber visto sesión a los cinco segundos. Con
+        // un link perfectamente válido pero una conexión lenta, el canje no
+        // había terminado y el mensaje acusaba a la persona de algo que no
+        // había hecho. Peor que no avisar nada.
+        const token = tokenDeLaUrl();
+        if (!token) return;
+
+        const supabase = createClient();
+
+        // 1. ¿El token es válido? Si no lo es, recién ahí se acusa al link.
+        const { error } = await supabase.auth.getUser(token.access_token);
+        if (error) {
+          console.error("[login] Supabase rechazó el token:", error.message);
           limpiarTokenDeLaUrl();
-          setLinkMuerto(true);
+          setProblema(
+            "Ese link ya se usó o se venció. Mandate otro desde el formulario de abajo.",
+          );
+          return;
         }
+
+        // 2. El token es válido: el problema es NUESTRO, no de la persona. Se
+        // canjea a mano y se entra. Un mensaje de error acá habría sido
+        // inventar un culpable para tapar un bug propio.
+        console.warn("[login] el token era válido y no se canjeó solo; se canjea a mano");
+        const { error: errorCanje } = await supabase.auth.setSession({
+          access_token: token.access_token,
+          refresh_token: token.refresh_token,
+        });
+        if (errorCanje) {
+          console.error("[login] falló el canje manual:", errorCanje.message);
+          setProblema("No pudimos iniciar sesión. Probá de nuevo en un momento.");
+          return;
+        }
+
+        limpiarTokenDeLaUrl();
+        entrar();
         return;
       }
 
       const { data } = await createClient().auth.getSession();
       if (data.session) {
-        setListo(true);
         clearInterval(id);
-        router.replace("/agendas");
-        router.refresh();
+        entrar();
       }
     }, 500);
 
     return () => clearInterval(id);
-  }, [listo, router]);
+  }, [listo, entrar]);
 
-  if (!linkMuerto) return null;
+  if (!problema) return null;
 
   return (
     <p role="alert" className="text-accent text-sm mb-4">
-      Ese link ya se usó o se venció. Mandate otro desde el formulario de abajo.
+      {problema}
     </p>
   );
 }
