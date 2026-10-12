@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { todayISO } from "@/lib/format";
 import { getAgendas, getInvitacionesPara, requireUser } from "@/lib/db/queries";
+import type { InvitacionPendiente } from "@/lib/db/types";
 
 import { aceptar, crearAgenda } from "./acciones";
 
@@ -12,24 +13,38 @@ import { aceptar, crearAgenda } from "./acciones";
  * Con varias agendas, `/` tiene que resolver cuál, y el lugar honesto para
  * resolverlo es una pantalla donde se ven todas y se elige.
  */
-export default async function AgendasPage() {
+export default async function AgendasPage({
+  searchParams,
+}: PageProps<"/agendas">) {
   await requireUser();
+  const q = await searchParams;
 
   const [agendas, invitaciones] = await Promise.all([
     getAgendas(),
     getInvitacionesPara(),
   ]);
 
-  // Una invitación a una agenda de la que ya sos miembro es basura de un intento
-  // anterior que no llegó a borrar la fila. Mostrarla sería pedirle a alguien
-  // que se una a algo en lo que ya está.
-  const pendientes = invitaciones.filter(
-    (i) => i.agenda && !agendas.some((a) => a.id === i.agenda!.id),
-  );
+  // Las invitaciones que llegan ya vienen sin las de agendas en las que ya sos
+  // miembro: eso se filtra en la RPC, en la base, y no acá.
+  //
+  // Antes se filtraba en esta pantalla con `i.agenda && ...`, y ese era el bug:
+  // la RLS de `agendas` no deja leer una agenda de la que todavía no sos
+  // miembro, así que `agenda` llegaba null y TODA la invitación se descartaba
+  // antes de dibujarse. Existía y no se veía. Ver `0010_aceptar-invitacion.sql`.
+  const pendientes: InvitacionPendiente[] = invitaciones;
 
   return (
     <main className="p-4 md:p-8 max-w-lg">
       <h1 className="text-xl mb-6">Agendas</h1>
+
+      {/* La RPC devolvió false: no había invitación para este correo. Antes el
+          botón mandaba a /[agendaId] y la persona caía en un 404 sin explicación
+          alguna. */}
+      {q.error === "no-invitacion" && (
+        <p role="alert" className="text-accent text-sm mb-6">
+          Esa invitación ya no está disponible. Pide que te la vuelvan a mandar.
+        </p>
+      )}
 
       {pendientes.length > 0 && (
         <section className="mb-8">
@@ -37,12 +52,12 @@ export default async function AgendasPage() {
           <ul className="flex flex-col gap-2">
             {pendientes.map((i) => (
               <li
-                key={i.id}
+                key={i.invitacion_id}
                 className="border border-line rounded p-3 flex items-center justify-between gap-3"
               >
-                <span className="min-w-0 truncate">{i.agenda?.name}</span>
+                <span className="min-w-0 truncate">{i.agenda_nombre}</span>
                 <form action={aceptar}>
-                  <input type="hidden" name="agendaId" value={i.agenda!.id} />
+                  <input type="hidden" name="agendaId" value={i.agenda_id} />
                   <button type="submit" className="btn shrink-0">
                     Unirme
                   </button>

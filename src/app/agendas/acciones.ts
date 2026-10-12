@@ -70,8 +70,18 @@ export async function aceptar(formData: FormData) {
   const agendaId = String(formData.get("agendaId") ?? "");
   if (!agendaId) return;
 
-  const user = await requireUser();
-  await aceptarInvitacion(agendaId, user.id);
+  //(requireUser va primero: sin sesión no tiene sentido ni intentar.)
+  await requireUser();
+
+  // La RPC decide. Si devuelve false es que no había invitación para este
+  // correo: se avisa y se queda en /agendas, en vez de mandar a una agenda a la
+  // que la persona no pertenece. Mandarla ahí daba un 404 sin explicación.
+  const unidos = await aceptarInvitacion(agendaId);
+  if (!unidos) {
+    revalidatePath("/agendas");
+    redirect("/agendas?error=no-invitacion");
+  }
+
   revalidatePath("/agendas");
   redirect(`/${agendaId}`);
 }

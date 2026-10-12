@@ -2,7 +2,14 @@ import { redirect } from "next/navigation";
 
 import { hasSupabaseEnv } from "./client";
 import { createClient } from "./server";
-import type { Agenda, Invitacion, Miembro, Note, Profile } from "./types";
+import type {
+  Agenda,
+  Invitacion,
+  InvitacionPendiente,
+  Miembro,
+  Note,
+  Profile,
+} from "./types";
 
 export type { Agenda, Invitacion, Miembro, Note, Profile };
 
@@ -167,39 +174,35 @@ export async function invitar(agendaId: string, userId: string, email: string) {
 }
 
 /**
- * Las invitaciones que te hicieron a vos, para el aviso de "te invitaron a X".
+ * Las invitaciones que te hicieron, para el aviso de "te invitaron a X".
+ *
+ * Va por la RPC `invitaciones_pendientes` y NO por la tabla con un join a
+ * `agendas`. El join era el bug: la RLS de `agendas` solo deja leer las agendas
+ * de las que uno es miembro, y al recibir una invitación todavía no lo es. El
+ * join devolvía `agenda: null`, y /agendas descartaba las invitaciones sin
+ * agenda, así que la invitación existía pero no se veía ninguna. La RPC es
+ * security definer y trae el nombre sin depender de esa RLS.
  *
  * NO tira si la consulta falla. Esta función vive en la pantalla de inicio, y
  * `/agendas` es justamente donde se entra a una agenda compartida: si fallar
- * al buscar invitaciones tumba la pantalla, no se puede entrar a ninguna agenda
- * que sea. Peor todavía: el síntoma es un 404, porque el error sube por la page
- * y no hay nada que distinguishes de "esta agenda no existe".
+ * al buscar invitaciones tumba la pantalla y no se puede entrar a ninguna agenda.
+ * Peor todavía: el síntoma es un 404, porque el error sube por la page y no hay
+ * nada que lo distinga de "esta agenda no existe".
  *
- * Degradar a "no tenés invitaciones" es lo correcto acá. Una invitación perdida
+ * Degradar a "no tienes invitaciones" es lo correcto acá. Una invitación perdida
  * se vuelve a mandar; una app que no abre, no.
  */
-export async function getInvitacionesPara(): Promise<
-  Array<Invitacion & { agenda: Agenda | null }>
-> {
+export async function getInvitacionesPara(): Promise<Array<InvitacionPendiente>> {
   const supabase = await createClient();
-  const email = (await getUser())?.email ?? "";
 
-  if (!email) return [];
-
-  const { data, error } = await supabase
-    .from("agenda_invitaciones")
-    .select("*, agendas (id, name, color, created_by, created_at)")
-    .ilike("email", email);
+  const { data, error } = await supabase.rpc("invitaciones_pendientes");
 
   if (error) {
     console.error("getInvitacionesPara:", error.message);
     return [];
   }
 
-  return (data ?? []).map((i) => ({
-    ...i,
-    agenda: (i.agendas as unknown as Agenda) ?? null,
-  }));
+  return (data ?? []) as InvitacionPendiente[];
 }
 
 /** Las invitaciones que están esperando, para la pantalla de ajustes. */
@@ -235,32 +238,27 @@ export async function revocarInvitacion(agendaId: string, email: string) {
 }
 
 /**
- * Acepta una invitación: te suma a la agenda y borra el invitation.
+ * Acepta una invitación: te suma a la agenda y borra la invitación.
  *
- * Las dos cosas en una transacción de la API no se puede, así que el orden es
- * miembro primero. Si el borrado falla, queda una invitación que ya no sirve:
- * volver a aceptar es un no-op porque la primary key de agenda_miembros ya
- * tiene la fila. Al revés, borrar primero y fallar el insert deja a alguien
- * invited sin poder entrar nunca.
+ * Va por la RPC `aceptar_invitation` y no por insertar en `agenda_miembros` desde
+ * la app. El insert directo estaba bloqueado siempre: la policy de esa tabla
+ * exige `es_dueno(agenda_id, auth.uid())`, y quien acepta una invitación no es
+ * el dueño. El dueño podía invitar; nadie podía unirse nunca.
+ *
+ * No se aflojó la policy: la autorización se movió dentro de la función, que
+ * solo une si hay una invitación real para el correo del usuario de la sesión.
+ *
+ * Devuelve `false` si no había invitación. No es un error: es "no podías".
  */
-export async function aceptarInvitacion(agendaId: string, userId: string) {
+export async function aceptarInvitacion(agendaId: string): Promise<boolean> {
   const supabase = await createClient();
 
-  const { error: errorMiembro } = await supabase
-    .from("agenda_miembros")
-    .upsert(
-      { agenda_id: agendaId, profile_id: userId, rol: "miembro" },
-      { onConflict: "agenda_id,profile_id" },
-    );
+  const { data, error } = await supabase.rpc("aceptar_invitation", {
+    p_agenda: agendaId,
+  });
 
-  if (errorMiembro) throw errorMiembro;
-
-  const email = (await getUser())?.email ?? "";
-  await supabase
-    .from("agenda_invitaciones")
-    .delete()
-    .eq("agenda_id", agendaId)
-    .ilike("email", email);
+  if (error) throw error;
+  return data === true;
 }
 
 // ---------------------------------------------------------------------------

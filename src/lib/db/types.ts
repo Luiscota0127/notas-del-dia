@@ -203,6 +203,31 @@ export type Database = {
         Args: { p_creator: string; p_name: string };
         Returns: Database["public"]["Tables"]["agendas"]["Row"];
       };
+      /**
+       * Invitaciones dirigidas al correo del usuario de la sesión, con el nombre
+       * de la agenda. Trae el nombre justamente porque la RLS de `agendas` no
+       * deja leer una agenda de la que todavía no sos miembro. Ver
+       * `0010_aceptar-invitacion.sql`.
+       */
+      invitaciones_pendientes: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          invitacion_id: string;
+          agenda_id: string;
+          agenda_nombre: string;
+          agenda_color: string;
+          invited_by: string;
+          invited_at: string;
+        }[];
+      };
+      /**
+       * Te une a la agenda si te invitaron. Devuelve false si no había
+       * invitación: no es un error, es "no podías".
+       */
+      aceptar_invitation: {
+        Args: { p_agenda: string };
+        Returns: boolean;
+      };
     };
     Enums: Record<never, never>;
     CompositeTypes: Record<never, never>;
@@ -214,3 +239,12 @@ export type Note = Database["public"]["Tables"]["notes"]["Row"];
 export type Agenda = Database["public"]["Tables"]["agendas"]["Row"];
 export type Miembro = Database["public"]["Tables"]["agenda_miembros"]["Row"];
 export type Invitacion = Database["public"]["Tables"]["agenda_invitaciones"]["Row"];
+
+/**
+ * Una invitación pendiente, tal como la devuelve `invitaciones_pendientes`.
+ *
+ * Ya viene con el nombre de la agenda adentro. Antes venía anidada en un
+ * `agenda: Agenda | null` que la RLS dejaba en null para quien todavía no era
+ * miembro, y eso hacía que la pantalla descartara la invitación entera.
+ */
+export type InvitacionPendiente = Database["public"]["Functions"]["invitaciones_pendientes"]["Returns"][number];
