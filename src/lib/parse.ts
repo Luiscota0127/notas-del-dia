@@ -47,7 +47,24 @@ const MES_RE = /^[A-ZÁÉÍÓÚÑ]{3,}$/;
 const TIME_RE =
   /^(\d{1,2}:\d{2})\s*([ap])\.?\s*m?\.?(?:\s+a\s+(\d{1,2}:\d{2})\s*([ap])\.?\s*m?\.?)?/i;
 
-const MARKER_RE = /^([☐☑☒]\s*|\[[ xX]\]\s*)/;
+/**
+ * El marcador de casilla, y el guion de Notion si viene antes.
+ *
+ * Notion exporta las tareas con el guion DELANTE del checkbox:
+ *
+ *     - [ ] Aire acondicionado
+ *     - [x] Centrum
+ *
+ * Ese guion va dentro del marcador, no antes. Si fuera aparte, la línea caería
+ * como viñeta y el `[ ]` quedaría dentro del texto: se vería "- [ ] Aire
+ * acondicionado" como una viñeta cualquiera, sin checkbox, y `[x]` ni siquiera
+ * se contaría como hecha. Que es exactamente lo que pasaba al importar de
+ * Notion.
+ *
+ * El guion SOLO se acepta si después viene un checkbox. `- algo` sin checkbox
+ * tiene que seguir siendo una viñeta de las de siempre.
+ */
+const MARKER_RE = /^((?:[-*]\s+)?[☐☑☒]\s*|(?:[-*]\s+)?\[[ xX]\]\s*)/;
 /** `•` puede ir seguido de dos espacios. */
 const BULLET_RE = /^([-*•]\s+)/;
 
@@ -209,11 +226,17 @@ export function toggleCheck(raw: string): string {
   const marker = m[0];
   const done = /[☑☒]|\[[xX]\]/.test(marker);
 
-  let next: string;
-  if (marker.startsWith("[")) next = done ? "[ ] " : "[x] ";
-  else if (marker.startsWith("☑")) next = "☐ ";
-  else if (marker.startsWith("☒")) next = "☐ ";
-  else next = "☑ ";
+  // El guion de Notion se saca antes de decidir el carácter, y se vuelve a
+  // poner en el mismo lugar. Sin esto, tocar el checkbox de "- [ ] Pan"
+  // devolvía "☐ Pan" y la línea dejaba de ser una tarea al volver a leerla:
+  // el checkbox se rompía después del primer clic.
+  const guion = /^[ \t]*[-*]\s+/.test(marker) ? marker.match(/^[-*]\s+/)?.[0] ?? "" : "";
 
-  return next + raw.slice(marker.length);
+  let siguiente: string;
+  if (/\[[ xX]\]/.test(marker)) siguiente = done ? "[ ] " : "[x] ";
+  else if (marker.includes("☑")) siguiente = "☐ ";
+  else if (marker.includes("☒")) siguiente = "☐ ";
+  else siguiente = "☑ ";
+
+  return guion + siguiente + raw.slice(marker.length);
 }
