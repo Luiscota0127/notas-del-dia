@@ -164,6 +164,43 @@
   min-height: var(--linea);
 }
 
+/*
+ * Títulos que vienen de Notion: `## Nahomi`.
+ *
+ * Se ven limpios, sin los `#`, igual que en Notion.
+ *
+ * Misma restricción que arriba y por la misma razón: el alto tiene que ser
+ * EXACTAMENTE --linea. Un título que crezca desplaza todas las líneas de abajo y
+ * el caret queda corrido respecto del texto. Por eso el tamaño no sube con el
+ * nivel: `##` y `###` se distinguen por el peso y el margen, no por la caja.
+ *
+ * El margen vertical NO va: también movería la caja. Se separa con padding
+ * lateral, que no afecta el alto.
+ */
+.subtitulo {
+  color: var(--color-fg);
+  font-weight: 600;
+  min-height: var(--linea);
+}
+
+.nivel-1 {
+  font-size: 17px;
+}
+
+.nivel-2,
+.nivel-3 {
+  font-size: 16px;
+}
+
+/* Los niveles profundos se atenúan un poco: `####` no debería pesar más que
+   `##`, solo verse más chico. */
+.nivel-4,
+.nivel-5,
+.nivel-6 {
+  font-size: 15px;
+  color: var(--color-dim);
+}
+
 /* Prefijo ----------------------------------------------------------------- */
 /* El carácter original (`☐ `, `•  `) presente pero invisible. Su ancho es lo que
    mido en NoteEditor para fijar --ancho-prefijo, así que tiene que seguir

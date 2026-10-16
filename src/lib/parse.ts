@@ -8,7 +8,7 @@
  * Contrato: .opencode/skills/notas-formato/references/parsing.md
  */
 
-export type TaskKind = "check" | "bullet" | "text" | "heading" | "blank";
+export type TaskKind = "check" | "bullet" | "text" | "heading" | "subtitulo" | "blank";
 
 export type Task = {
   /** La línea tal cual se escribió. Siempre preservada: es la fuente de verdad. */
@@ -35,6 +35,14 @@ export type Task = {
   body: string;
   /** "mes" o "dia". Solo en kind === "heading". */
   heading?: "mes" | "dia";
+  /**
+   * Cuántos `#` traía la línea, solo en kind === "subtitulo".
+   *
+   * Notion exporta los títulos así: `## Nahomi`. Sin esto el `##` quedaba
+   * pegado al texto y se veía literal, que es justo lo que no quiere quien copia
+   * una lista de Notion.
+   */
+  nivel?: number;
   /** Índice de la línea en el body. Para el toggle programático del checkbox. */
   index: number;
 };
@@ -149,6 +157,29 @@ function parseLine(raw: string, index: number): Task {
   }
   if (MES_RE.test(sinHash)) {
     return { ...base, kind: "heading", heading: "mes", title: sinHash, body: sinHash };
+  }
+
+  // 2b. Título de Notion: `# Nahomi`, `## Nahomi`, `### …`.
+  //
+  // Solo cuenta si hay texto detrás. `#` solo, o `#   `, no es un título: es
+  // una línea vacía que alguien empezó a escribir y no terminó, y convertirla
+  // en título borra la intención de "todavía no escribí esto".
+  //
+  // Se guarda el nivel para que la capa de display pueda diferenciar un `##` de
+  // un `###`, pero el texto que se ve nunca lleva los `#`: se ven limpios, como
+  // en Notion.
+  const conHash = /^#{1,6}\s+(.+)$/.exec(raw.trim());
+  if (conHash) {
+    const texto = conHash[1].trim();
+    if (texto) {
+      return {
+        ...base,
+        kind: "subtitulo",
+        nivel: conHash[0].match(/^#+/)?.[0].length ?? 1,
+        title: texto,
+        body: texto,
+      };
+    }
   }
 
   // 3. check

@@ -136,6 +136,24 @@ export function DisplayLayer({
           );
         }
 
+        // Título de Notion: `## Nahomi`. Se ve el texto limpio, sin los `#`, que
+        // es lo que hace Notion.
+        //
+        // NO lleva el prefijo invisible que usan las casillas: ahí sirve para
+        // reservar el ancho exacto del carácter. Acá no hay checkbox que alinear
+        // y el `##` no se ve, así que la línea ocupa su ancho completo.
+        if (task.kind === "subtitulo") {
+          return (
+            <div
+              key={task.index}
+              className={`linea subtitulo nivel-${task.nivel ?? 1}`}
+              aria-hidden="true"
+            >
+              {task.body}
+            </div>
+          );
+        }
+
         if (task.kind === "check") {
           return (
             <div key={task.index} className="linea linea-check hanging">
